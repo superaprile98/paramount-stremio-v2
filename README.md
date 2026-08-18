@@ -38,6 +38,7 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 
 ### Other known issues
 
+- **US-only service**: the addon talks to the **US** Paramount+ API (`www.paramountplus.com`, US `at` token). If you are outside the US, the activation page will geo-redirect you to your local Paramount+ (a separate system with separate accounts) and the device code will never be accepted. To activate, open `https://www.paramountplus.com/activate/androidtv/` from a browser that exits from a US IP (US VPN or the same proxy used by the addon — your IP must be whitelisted). The page must show "Activate Paramount Plus on Android TV" in English.
 - Some players (such as KSPlayer) may freeze during commercials due to poor support for the m3u #EXT-X-DISCONTINUITY tag (we recommend using libVLC or an external player that supports this tag).
 - If you see an HTTP 403 error during playback, your IP may have been permanently banned (this happens when using a VPN). We recommend changing your DNS server and trying again.
 - The addon login session is valid for one year. If you notice that the addon is no longer working, try logging in again.

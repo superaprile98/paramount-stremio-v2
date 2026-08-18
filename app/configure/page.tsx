@@ -218,6 +218,20 @@ export default function ConfigurePage() {
                                         {activationCode}
                                     </div>
                                     <p style={{ opacity: 0.8 }}>I am automatically checking every 3 seconds...</p>
+                                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                        <p className="font-semibold">⚠️ US account required</p>
+                                        <p className="mt-1">
+                                            This addon works with the <b>US</b> Paramount+ service. If you are outside
+                                            the US, the activation page will redirect you to your local Paramount+
+                                            (a separate system) and the code will never be accepted.
+                                        </p>
+                                        <p className="mt-2">
+                                            To activate on the US page, open the link above with a browser that uses
+                                            the US proxy <code className="rounded bg-amber-100 px-1">31.56.127.193:7684</code>
+                                            (your IP is already whitelisted), or use a US VPN. The page must show the
+                                            English title <b>Activate Paramount Plus on Android TV</b>.
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
