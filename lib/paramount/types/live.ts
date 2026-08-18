@@ -1,9 +1,10 @@
-import {ParamountClient, ParamountSession} from "@/lib/paramount/client";
-import {StremioMeta} from "@/lib/stremio/types";
-import {isLicenseUrl, normImg, pickManifestUrl, pickPoster} from "@/lib/paramount/utils";
-import {pplusLiveId} from "@/lib/paramount/mapping";
+import { ParamountClient, ParamountSession } from "@/lib/paramount/client";
+import { StremioMeta } from "@/lib/stremio/types";
+import { isLicenseUrl, normImg, pickManifestUrl, pickPoster, sessionFingerprint } from "@/lib/paramount/utils";
+import { pplusLiveId } from "@/lib/paramount/mapping";
+import { LiveChannelItem } from "@/lib/paramount/types/api";
 
-export function mapLiveListingToMeta(e: any) {
+export function mapLiveListingToMeta(e: LiveChannelItem | null | undefined) {
     const eventId = e?.slug;
     const channelName = e?.channelName;
     let channelTitle = channelName;
@@ -16,7 +17,7 @@ export function mapLiveListingToMeta(e: any) {
     const channelProgram = channelListing?.title ?? null;
     const channelProgramDesc = channelListing?.description ?? null;
     const channelProgramPoster = pickPoster(channelListing);
-    if(channelProgram && channelProgram.toString().toLowerCase() !== channelName.toString().toLowerCase())
+    if (channelProgram && channelProgram.toString().toLowerCase() !== channelName.toString().toLowerCase())
         channelTitle = `${channelName} — ${channelProgram}`
 
     const descParts: string[] = [];
@@ -45,33 +46,37 @@ export function mapLiveListingToMeta(e: any) {
 }
 
 const LIVE_LISTING_CACHE_TTL = 30 * 1000;
-let liveListingCache: { data: any[]; expiresAt: number } | undefined;
+// Cache per-sessione: la chiave è il fingerprint dei cookie, così tenant
+// diversi non condividono mai i listing (fix cross-tenant).
+const liveListingCache = new Map<string, { data: any[]; expiresAt: number }>();
 
-export async function getLiveListing(session: ParamountSession) : Promise<any> {
-    let listings: any[];
+export async function getLiveListing(session: ParamountSession): Promise<LiveChannelItem[]> {
+    const cacheKey = sessionFingerprint(session);
+    const cached = liveListingCache.get(cacheKey);
+    let listings: LiveChannelItem[];
 
-    if (liveListingCache && Date.now() < liveListingCache.expiresAt) {
-        listings = liveListingCache.data;
+    if (cached && Date.now() < cached.expiresAt) {
+        listings = cached.data;
     } else {
         const client = new ParamountClient();
         await client.setSession(session);
-        const data: any = await client.getLiveChannels();
+        const data = await client.getLiveChannels();
 
-        listings = data?.channels ??
+        listings = (data?.channels ??
             data?.data?.channels ??
             data?.data?.listings ??
             data?.data?.data?.listings ??
-            [];
+            []) as LiveChannelItem[];
 
         if (listings.length === 0) {
             console.warn("[live] empty listings, raw response:", JSON.stringify(data)?.slice(0, 500));
         } else {
-            liveListingCache = { data: listings, expiresAt: Date.now() + LIVE_LISTING_CACHE_TTL };
+            liveListingCache.set(cacheKey, { data: listings, expiresAt: Date.now() + LIVE_LISTING_CACHE_TTL });
         }
     }
 
     const mpdEnabled = process.env.MPD_ENABLED === "true";
-    return listings.filter((l: any) => {
+    return listings.filter((l) => {
         if (mpdEnabled) return true;
         const isMpx = l?.channelTypes?.includes('vod_to_live');
         return !isMpx;
@@ -92,14 +97,14 @@ export async function resolveLiveStream(session: ParamountSession, slug: string)
     streamingUrl: string;
     streamingTitle: string;
     lsSession: string;
-    lsUrl: string|undefined;
+    lsUrl: string | undefined;
     videoContentId: string;
 } | null> {
     const e = await findLiveListing(session, slug);
     const channelName = e?.channelName ?? slug;
     const channelProgram = e?.currentListing?.[0] ?? e?.upcomingListing?.[0] ?? null;
     let streamingTitle = `📺 ${channelName}`;
-    if(channelProgram?.title && channelProgram?.title.toString().toLowerCase() !== channelName.toString().toLowerCase())
+    if (channelProgram?.title && channelProgram?.title.toString().toLowerCase() !== channelName.toString().toLowerCase())
         streamingTitle += `\n📹 ${channelProgram?.title}`;
     const streamingContentId = channelProgram?.videoContentId ?? channelProgram?.contentId ?? e?.videoContentId ?? e?.contentId ?? null;
 

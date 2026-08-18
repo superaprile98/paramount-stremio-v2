@@ -22,7 +22,7 @@ export class HttpClient {
         });
     }
 
-    private async baseRequest(config: AxiosRequestConfig) : Promise<{
+    private async baseRequest(config: AxiosRequestConfig): Promise<{
         status: number;
         data: any;
         headers: Headers;
@@ -38,6 +38,16 @@ export class HttpClient {
                     responseHeaders.set(key, value as string);
                 }
             });
+
+            // P14: gli errori 4xx/5xx non devono essere silenziosi.
+            // I chiamanti controllano ancora lo status, ma logghiamo il contesto
+            // (URL, status, body troncato) per la diagnosi.
+            if (response.status >= 400) {
+                const bodyPreview = typeof response.data === "string"
+                    ? response.data.slice(0, 300)
+                    : JSON.stringify(response.data)?.slice(0, 300);
+                console.warn(`[HTTP] ${config.method ?? "GET"} ${config.url} -> ${response.status} ${bodyPreview ?? ""}`);
+            }
 
             return {
                 status: response.status,

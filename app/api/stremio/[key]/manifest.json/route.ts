@@ -36,6 +36,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
                 { name: "skip" },
             ],
         },
+        {
+            type: "movie",
+            id: "pplus_movies",
+            name: "Paramount+ Movies",
+            extra: [{ name: "search" }, { name: "skip" }],
+        },
+        {
+            type: "series",
+            id: "pplus_series",
+            name: "Paramount+ Series",
+            extra: [{ name: "search" }, { name: "skip" }],
+        },
     ];
 
     const baseUrl = process.env.BASE_URL?.replace(/\/$/, '') ?? new URL(_req.url).origin;
@@ -50,7 +62,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
         logo: logo,
         background: background,
         resources: ["catalog", "meta", "stream"],
-        types: ["tv"], //TODO: movie, series
+        types: ["tv", "movie", "series"],
         idPrefixes: ["pplus:"],
         catalogs,
     };

@@ -1,7 +1,8 @@
-import {ParamountSession} from "@/lib/paramount/client";
-import {StremioMeta} from "@/lib/stremio/types";
-import {getSportListing, mapSportListingToMeta} from "@/lib/paramount/types/sports";
-import {getLiveListing, mapLiveListingToMeta} from "@/lib/paramount/types/live";
+import { ParamountSession } from "@/lib/paramount/client";
+import { StremioMeta } from "@/lib/stremio/types";
+import { getSportListing, mapSportListingToMeta } from "@/lib/paramount/types/sports";
+import { getLiveListing, mapLiveListingToMeta } from "@/lib/paramount/types/live";
+import { getTrendingMovies, getTrendingShows, searchVod } from "@/lib/paramount/types/vod";
 
 function stripJsonSuffix(s: string) {
     return s.endsWith(".json") ? s.slice(0, -5) : s;
@@ -17,16 +18,29 @@ export async function getCatalogMetas(args: {
     session: ParamountSession;
     extra?: { search?: string; skip?: number; genre?: "Live" | "Upcoming" };
 }): Promise<StremioMeta[]> {
-    let { type, id, session, extra } = args;
-
-    id = stripJsonSuffix(id);
+    const { type, session, extra } = args;
+    const id = stripJsonSuffix(args.id);
 
     const skip = extra?.skip ?? 0;
     const search = safeLower(extra?.search);
     const genre = extra?.genre;
     const pageSize = 100;
 
-    //TODO: movies and shows
+    //VOD — Movies
+    if (type === "movie" && id === "pplus_movies") {
+        const movies = search
+            ? await searchVod(session, search)
+            : await getTrendingMovies(session);
+        return movies.slice(skip, skip + pageSize);
+    }
+
+    //VOD — Series
+    if (type === "series" && id === "pplus_series") {
+        const shows = search
+            ? await searchVod(session, search)
+            : await getTrendingShows(session);
+        return shows.slice(skip, skip + pageSize);
+    }
 
     //Live
     if (type === "tv" && id === "pplus_live") {
@@ -56,13 +70,13 @@ export async function getCatalogMetas(args: {
                 return false;
             })
             : genre === "Upcoming"
-            ? sportListings.filter((e) => {
-                if (e?.isListingLive === true) return false;
-                const startMs = typeof e.startTimestamp === "number" ? e.startTimestamp
-                    : typeof e.streamStartTimestamp === "number" ? e.streamStartTimestamp : undefined;
-                return startMs !== undefined && startMs > now;
-            })
-            : sportListings;
+                ? sportListings.filter((e) => {
+                    if (e?.isListingLive === true) return false;
+                    const startMs = typeof e.startTimestamp === "number" ? e.startTimestamp
+                        : typeof e.streamStartTimestamp === "number" ? e.streamStartTimestamp : undefined;
+                    return startMs !== undefined && startMs > now;
+                })
+                : sportListings;
 
         const sportMetas = filteredByGenre.map(mapSportListingToMeta).filter(Boolean) as StremioMeta[];
 

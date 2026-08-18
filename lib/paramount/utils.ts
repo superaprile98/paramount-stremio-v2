@@ -1,5 +1,5 @@
-import {NextRequest} from "next/server";
-import {httpClient} from "@/lib/http/client";
+import { NextRequest } from "next/server";
+import { httpClient } from "@/lib/http/client";
 
 export const PPLUS_BASE_URL = "https://www.paramountplus.com";
 export const PPLUS_AT_TOKEN_US = "ABB+XYTJa4Y14QBS5+7jCYvFe04w88I5dxzStu4zlQ4rqTTW/iMZ33tuiqPzzdgMJjQ=";
@@ -10,7 +10,7 @@ export const PPLUS_IMG_BASE = "https://wwwimage-us.pplusstatic.com/base/";
 let PPLUS_HEADER_CACHED: string | undefined;
 let PPLUS_HEADER_LAST_FETCH = 0;
 const PPLUS_HEADER_CACHE_TTL = 24 * 60 * 60 * 1000;
-export async function PPLUS_HEADER() : Promise<string> {
+export async function PPLUS_HEADER(): Promise<string> {
     const now = Date.now();
     if (PPLUS_HEADER_CACHED && (now - PPLUS_HEADER_LAST_FETCH < PPLUS_HEADER_CACHE_TTL)) {
         return PPLUS_HEADER_CACHED;
@@ -22,24 +22,39 @@ export async function PPLUS_HEADER() : Promise<string> {
             timeout: 2000,
         });
         if (currentVersion) version = currentVersion.toString().trim();
-    } catch {}
+    } catch (err: any) {
+        // P16: log contestuale, ma non blocchiamo il flusso: usiamo il fallback.
+        console.warn(`[PPLUS_HEADER] version fetch failed, using fallback ${PPLUS_APP_VERSION_FALLBACK}: ${err?.message ?? err}`);
+    }
 
     PPLUS_HEADER_CACHED = `Paramount+/${version} (com.cbs.ott; build:520000178; Android SDK 30; androidtv; SHIELD Android TV) okhttp/5.1.0`;
     PPLUS_HEADER_LAST_FETCH = now;
     return PPLUS_HEADER_CACHED;
 }
 
-export async function checkMyIp() {
+export function stripJsonSuffix(s: string) {
+    return s.endsWith(".json") ? s.slice(0, -5) : s;
+}
+
+/**
+ * Decodifica URI in modo sicuro: restituisce la stringa originale
+ * se la percent-encoding non è valida (evita URIError → 500).
+ */
+export function safeDecode(s: string): string {
     try {
-        const res = await httpClient.get('https://ipinfo.io/json');
-        console.log(`[GeoCheck] IP: ${res.data.ip}, City: ${res.data.city}, Country: ${res.data.country}, Org: ${res.data.org}`);
-    } catch (e) {
-        console.error("Proxy Not Working");
+        return decodeURIComponent(s);
+    } catch {
+        return s;
     }
 }
 
-export function stripJsonSuffix(s: string) {
-    return s.endsWith(".json") ? s.slice(0, -5) : s;
+/**
+ * Fingerprint stabile della sessione (basato sui cookie) usato come chiave
+ * per le cache per-sessione. Evita che listing di tenant diversi si mescolino.
+ */
+export function sessionFingerprint(session: { cookies?: string[] }): string {
+    const cookies = Array.isArray(session?.cookies) ? session.cookies : [];
+    return cookies.join("|");
 }
 
 // Domini che richiedono le credenziali di sessione Paramount+ (cookie/bearer)
@@ -60,6 +75,15 @@ const PPLUS_UPSTREAM_ALLOWED_HOSTS = [
     "doubleclick.net",
 ];
 
+// Path sensibili che non devono mai essere proxati (es. endpoint di amministrazione)
+const BLOCKED_PATH_PATTERNS = [
+    /\/admin\b/i,
+    /\/\.env/i,
+    /\/\.git/i,
+    /\/internal\b/i,
+    /\/debug\b/i,
+];
+
 function hostMatches(hostname: string, domains: string[]) {
     const h = hostname.toLowerCase();
     return domains.some((domain) => h === domain || h.endsWith(`.${domain}`));
@@ -70,7 +94,16 @@ export function isAllowedUpstreamHost(hostname: string) {
 }
 
 export function isAllowedUpstreamUrl(url: URL) {
-    return (url.protocol === "https:" || url.protocol === "http:") && isAllowedUpstreamHost(url.hostname);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    if (!isAllowedUpstreamHost(url.hostname)) return false;
+
+    // Rifiuta URL con credenziali incorporate (user:pass@host)
+    if (url.username || url.password) return false;
+
+    // Rifiuta path sensibili
+    if (BLOCKED_PATH_PATTERNS.some((re) => re.test(url.pathname))) return false;
+
+    return true;
 }
 
 export function needsParamountAuth(hostname: string) {

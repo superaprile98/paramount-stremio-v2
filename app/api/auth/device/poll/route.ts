@@ -1,11 +1,15 @@
-import {ParamountAuthStart, ParamountClient, ParamountSession} from "@/lib/paramount/client";
+import { ParamountAuthStart, ParamountClient, ParamountSession } from "@/lib/paramount/client";
 import { withCors, optionsCors } from "@/lib/stremio/cors";
 
 export function OPTIONS() { return optionsCors(); }
 
 export async function POST(req: Request) {
     const url = new URL(req.url);
-    const auth: ParamountAuthStart = await req.json().catch(() => null);
+    const auth: ParamountAuthStart | null = await req.json().catch(() => null);
+
+    if (!auth || typeof auth.createdAt !== "string" || Number.isNaN(Date.parse(auth.createdAt))) {
+        return withCors(Response.json({ ok: false, error: "Invalid auth payload" }, { status: 400 }));
+    }
 
     if (Date.now() - Date.parse(auth.createdAt) > 10 * 60 * 1000) {
         return withCors(Response.json({ ok: false, error: "Auth expired" }, { status: 400 }));
@@ -18,12 +22,15 @@ export async function POST(req: Request) {
         return withCors(Response.json({ ok: false }));
     }
 
-    const session : ParamountSession = {
+    const session: ParamountSession = {
         cookies: polled.cookies,
         expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 365
     };
     await client.setSession(session);
     const key = await client.getSessionKey();
+    if (!key) {
+        return withCors(Response.json({ ok: false, error: "Failed to create session key" }, { status: 500 }));
+    }
 
     const base = (process.env.BASE_URL?.replace(/\/$/, '') ?? url.origin) || "http://localhost:3000";
     const manifestUrl = `${base}/api/stremio/${encodeURIComponent(key)}/manifest.json`;

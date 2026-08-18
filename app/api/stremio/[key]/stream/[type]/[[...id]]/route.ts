@@ -7,17 +7,37 @@ import {
     needsParamountAuth,
     PPLUS_BASE_URL,
     PPLUS_HEADER,
+    safeDecode,
     stripJsonSuffix
 } from "@/lib/paramount/utils";
 import { resolveSportStream } from "@/lib/paramount/types/sports";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
+import { resolveVodStream } from "@/lib/paramount/types/vod";
 import { wrapUrlWithMediaFlow } from "@/lib/mediaflowproxy/mediaflowproxy";
 import { shorten } from "@/lib/http/sid";
-import {httpClient} from "@/lib/http/client";
-import {splitMasterPlaylist, splitAudioTracks} from "@/lib/paramount/proxy/hls"
+import { httpClient } from "@/lib/http/client";
+import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls"
 
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
+
+// Cache breve del master manifest (P12): evita il doppio fetch quando il player
+// richiede subito lo stesso master via /proxy/hls dopo la generazione delle varianti.
+const MASTER_CACHE_TTL = 30 * 1000;
+const masterCache = new Map<string, { data: string; expiresAt: number }>();
+
+async function fetchMasterManifest(url: string, headers: Record<string, string>): Promise<string | null> {
+    const cacheKey = `${url}|${headers["authorization"] ?? ""}`;
+    const cached = masterCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) return cached.data;
+
+    const { status, data } = await httpClient.get(url, { headers });
+    if (status !== 200) return null;
+
+    const text = data.toString();
+    masterCache.set(cacheKey, { data: text, expiresAt: Date.now() + MASTER_CACHE_TTL });
+    return text;
+}
 
 export async function GET(
     req: NextRequest,
@@ -32,9 +52,8 @@ export async function GET(
     if (!session) return NextResponse.json({ streams: [] }, { status: 200 });
 
     const cleaned = stripJsonSuffix(String(id));
-    const decoded = decodeURIComponent(cleaned);
+    const decoded = safeDecode(cleaned);
 
-    if (type !== "tv") return NextResponse.json({ streams: [] }, { status: 200 });
     const parsed = parsePplusId(decoded);
 
     let streamData = null;
@@ -42,6 +61,8 @@ export async function GET(
         streamData = await resolveSportStream(session, parsed.key);
     } else if (parsed.kind === "live") {
         streamData = await resolveLiveStream(session, parsed.key);
+    } else if (parsed.kind === "movie" || parsed.kind === "series") {
+        streamData = await resolveVodStream(session, parsed.key);
     }
     if (!streamData) return NextResponse.json({ streams: [] }, { status: 200 });
 
@@ -64,10 +85,10 @@ export async function GET(
     }
 
     // Proxy playlist endpoint
-    if(streamingUrl) {
+    if (streamingUrl) {
         const baseUrl = process.env.BASE_URL?.replace(/\/$/, '') ?? new URL(req.url).origin;
 
-        if(streamingUrl.toString().includes('.m3u8')) {
+        if (streamingUrl.toString().includes('.m3u8')) {
 
             // Base proxy URL (immutable reference — clone per variante)
             const proxyBase = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/hls`);
@@ -84,11 +105,8 @@ export async function GET(
             });
 
             headers['accept'] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
-            const {status, data} = await httpClient.get(streamingUrl.toString(), {
-                headers: headers
-            });
-            if(status == 200) {
-                const masterM3u8 = data.toString();
+            const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers);
+            if (masterM3u8) {
                 const audioTracks = splitAudioTracks(masterM3u8);
                 const multiLang = audioTracks.length >= 2;
 
@@ -156,7 +174,7 @@ export async function GET(
                 });
             }
 
-        }else if(streamingUrl.toString().includes('.mpd')){
+        } else if (streamingUrl.toString().includes('.mpd')) {
             //MPD internal proxy stream
             const sid = shorten(key, streamingUrl.toString(), lsSession.toString(), lsUrl.toString());
             const internal = new URL(`${baseUrl}/api/proxy/${sid}/mpd`);
@@ -183,12 +201,14 @@ export async function GET(
         }
     }
 
-    return NextResponse.json({streams}, { status: 200, headers: {
-        "Allow": "GET, HEAD, OPTIONS",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
-        "Content-Type": "application/json",
-    } });
+    return NextResponse.json({ streams }, {
+        status: 200, headers: {
+            "Allow": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+            "Content-Type": "application/json",
+        }
+    });
 }

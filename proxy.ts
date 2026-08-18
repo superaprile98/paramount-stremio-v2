@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
-  console.log(`${request.method} ${request.nextUrl.pathname}${request.nextUrl.search}`);
+  // Log only the pathname — never the query string, which may contain
+  // session keys (key), upstream tokens (t) or proxied URLs (u).
+  console.log(`${request.method} ${request.nextUrl.pathname}`);
   return NextResponse.next();
 }
 

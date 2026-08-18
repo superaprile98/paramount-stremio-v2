@@ -1,9 +1,10 @@
-import {ParamountClient, ParamountSession} from "@/lib/paramount/client";
-import {StremioMeta} from "@/lib/stremio/types";
-import {pplusSportId} from "@/lib/paramount/mapping";
-import {msToDateTimeFormat, msToUtc, normImg, pickPoster, pickLeagueLabel, pickManifestUrl, isLicenseUrl} from "@/lib/paramount/utils";
+import { ParamountClient, ParamountSession } from "@/lib/paramount/client";
+import { StremioMeta } from "@/lib/stremio/types";
+import { pplusSportId } from "@/lib/paramount/mapping";
+import { msToDateTimeFormat, msToUtc, normImg, pickPoster, pickLeagueLabel, pickManifestUrl, isLicenseUrl, sessionFingerprint } from "@/lib/paramount/utils";
+import { SportListingItem } from "@/lib/paramount/types/api";
 
-export function mapSportListingToMeta(e: any) {
+export function mapSportListingToMeta(e: SportListingItem | null | undefined) {
     const eventId = e?.id;
     const title = e?.title;
     if (!eventId || !title) return null;
@@ -35,7 +36,7 @@ export function mapSportListingToMeta(e: any) {
         'Paramount+',
         'Sport',
     ];
-    if(league) genres.push(league);
+    if (league) genres.push(league);
 
     return {
         id: pplusSportId(eventId),
@@ -52,33 +53,37 @@ export function mapSportListingToMeta(e: any) {
 }
 
 const SPORT_LISTING_CACHE_TTL = 30 * 1000;
-let sportListingCache: { data: any[]; expiresAt: number } | undefined;
+// Cache per-sessione: la chiave è il fingerprint dei cookie, così tenant
+// diversi non condividono mai i listing (fix cross-tenant).
+const sportListingCache = new Map<string, { data: any[]; expiresAt: number }>();
 
-export async function getSportListing(session: ParamountSession, onlyLive: boolean) : Promise<any>{
-    if (sportListingCache && Date.now() < sportListingCache.expiresAt) {
-        return filterSportListing(sportListingCache.data, onlyLive);
+export async function getSportListing(session: ParamountSession, onlyLive: boolean): Promise<SportListingItem[]> {
+    const cacheKey = sessionFingerprint(session);
+    const cached = sportListingCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+        return filterSportListing(cached.data, onlyLive);
     }
 
     const client = new ParamountClient();
     await client.setSession(session);
-    const data : any = await client.getSportsLiveUpcoming();
+    const data = await client.getSportsLiveUpcoming();
 
-    const listings: any[] =
-        data?.listings ??
-        data?.data?.listings ??
-        data?.data?.data?.listings ??
-        [];
+    const listings: SportListingItem[] =
+        (data?.listings ??
+            data?.data?.listings ??
+            data?.data?.data?.listings ??
+            []) as SportListingItem[];
 
     if (listings.length === 0) {
         console.warn("[sports] empty listings, raw response:", JSON.stringify(data)?.slice(0, 500));
     } else {
-        sportListingCache = { data: listings, expiresAt: Date.now() + SPORT_LISTING_CACHE_TTL };
+        sportListingCache.set(cacheKey, { data: listings, expiresAt: Date.now() + SPORT_LISTING_CACHE_TTL });
     }
 
     return filterSportListing(listings, onlyLive);
 }
 
-function filterSportListing(listings: any[], onlyLive: boolean) {
+function filterSportListing(listings: SportListingItem[], onlyLive: boolean) {
 
     const now = Date.now();
     return listings.filter((e) => {
@@ -117,7 +122,7 @@ export async function resolveSportStream(session: ParamountSession, listingId: s
     streamingUrl: string;
     streamingTitle: string;
     lsSession: string;
-    lsUrl: string|undefined;
+    lsUrl: string | undefined;
     videoContentId: string;
 } | null> {
     const e = await findSportListing(session, listingId);

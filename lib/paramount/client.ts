@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import {seal, unseal} from "@/lib/auth/jwe";
+import { seal, unseal } from "@/lib/auth/jwe";
 import {
     PPLUS_BASE_URL,
     PPLUS_AT_TOKEN_US,
@@ -7,6 +7,13 @@ import {
     PPLUS_HEADER
 } from "@/lib/paramount/utils";
 import { httpClient } from "@/lib/http/client";
+import {
+    IrdetoSessionToken,
+    LiveChannelItem,
+    ListResponse,
+    SportListingItem,
+    VodItem,
+} from "@/lib/paramount/types/api";
 
 type ParamountUserProfile = { id: number; isMasterProfile: boolean };
 type ParamountUser = { activeProfile: ParamountUserProfile; accountProfiles: ParamountUserProfile[] };
@@ -22,7 +29,7 @@ export type ParamountAuthStart = {
 export type ParamountSession = {
     cookies: string[];
     expiresAt: number;
-    profileId?: number|undefined;
+    profileId?: number | undefined;
 };
 
 export class ParamountClient {
@@ -51,7 +58,7 @@ export class ParamountClient {
         }
 
         const userAgent = await PPLUS_HEADER();
-        const {status: status, data: json} = await httpClient.get(url.toString(), {
+        const { status: status, data: json } = await httpClient.get(url.toString(), {
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
@@ -61,7 +68,8 @@ export class ParamountClient {
         });
 
         if (status >= 400) {
-            console.error(`[PPLUS] GET ${apiPath} returned ${status}:`, JSON.stringify(json)?.slice(0, 300));
+            // P16: log con contesto completo (URL, status, body troncato).
+            console.error(`[PPLUS] GET ${apiPath} returned ${status} (${url.toString()}):`, JSON.stringify(json)?.slice(0, 300));
         }
 
         if (debug) {
@@ -99,7 +107,7 @@ export class ParamountClient {
         }
 
         const userAgent = await PPLUS_HEADER();
-        const {status: status, data: json, cookies: cookies} = await httpClient.post(url.toString(),
+        const { status: status, data: json, cookies: cookies } = await httpClient.post(url.toString(),
             bodyJson,
             {
                 headers: {
@@ -107,8 +115,8 @@ export class ParamountClient {
                     "Accept": "application/json",
                     "User-Agent": userAgent,
                     ...(this.session?.cookies?.length ? { Cookie: this.session.cookies.map((c) => c.split(";")[0]).join("; ") } : {}),
-            },
-        });
+                },
+            });
 
         if (debug) {
             console.log("[PPLUS] Status", status);
@@ -120,7 +128,7 @@ export class ParamountClient {
     }
 
     /** Key session **/
-    public async setSessionKey(key: string){
+    public async setSessionKey(key: string) {
         if (!key) return null;
 
         let payload: any;
@@ -151,23 +159,23 @@ export class ParamountClient {
         };
     }
 
-    public async setSession(session: ParamountSession){
+    public async setSession(session: ParamountSession) {
         this.session = session;
-        if(!this.session.profileId){
+        if (!this.session.profileId) {
             this.session.profileId = await this.getMasterProfileId();
         }
     }
 
-    public getSession(): ParamountSession|undefined {
+    public getSession(): ParamountSession | undefined {
         return this.session;
     }
 
-    public async getSessionKey(): Promise<string>{
-        return await seal(this.session ?? {
-            cookies: [],
-            expiresAt: null,
-            profileId: null,
-        });
+    public async getSessionKey(): Promise<string | null> {
+        if (!this.session) {
+            console.warn("[session] getSessionKey called without an active session");
+            return null;
+        }
+        return await seal(this.session);
     }
 
     /** Authentication ***/
@@ -205,7 +213,10 @@ export class ParamountClient {
             if (!data.success) return { ok: false };
             if (!cookies.length) throw new Error("Auth success but no set-cookie received");
             return { ok: true, cookies: cookies };
-        } catch {
+        } catch (err: any) {
+            // P16: log contestuale — il poll fallisce spesso (utente non ha ancora
+            // completato l'attivazione), ma l'errore non deve essere invisibile.
+            console.warn(`[PPLUS] pollDeviceAuth failed: ${err?.message ?? err}`);
             return { ok: false };
         }
     }
@@ -226,7 +237,7 @@ export class ParamountClient {
     }
 
     async refreshCookies() {
-        if(!this.session) return this.session;
+        if (!this.session) return this.session;
         if (!this.session.profileId) this.session.profileId = await this.getMasterProfileId();
 
         const path = `/v2.0/androidtv/user/account/profile/switch/${this.session.profileId}.json`;
@@ -245,29 +256,16 @@ export class ParamountClient {
     }
 
     /** Stream Management **/
-    async getIrdetoSessionToken(contentId: string): Promise<any>{
-        return await this.getJson<any>(
+    async getIrdetoSessionToken(contentId: string): Promise<IrdetoSessionToken> {
+        return await this.getJson<IrdetoSessionToken>(
             "/v3.1/androidphone/irdeto-control/session-token.json",
             { contentId: contentId }
         );
     }
 
-    async getLinkPlatformUrl(contentId: string): Promise<any>{
-        const url = new URL(`http://link.theplatform.com/s/dJ5BDC/media/guid/${this.session?.profileId}/${contentId}`);
-        url.searchParams.set("auth", PPLUS_AT_TOKEN_US);
-        url.searchParams.set("formats", "MPEG4,M3U");
-        url.searchParams.set("assetTypes", "isml");
-        url.searchParams.set("policy", "138241");
-        url.searchParams.set("tracking", "true");
-        //url.searchParams.set("locale", PPLUS_LOCALE_US);
-        const {data: xml} = await httpClient.get(url.toString());
-        const match = xml.toString().match(/<src>([^<]+)<\/src>/);
-        return match ? match[1] : null;
-    }
-
     /** Catalogs **/
-    async getSportsLiveUpcoming(params: Record<string, any> = {}): Promise<any[]> {
-        return await this.getJson<any>(
+    async getSportsLiveUpcoming(params: Record<string, any> = {}): Promise<ListResponse<SportListingItem>> {
+        return await this.getJson<ListResponse<SportListingItem>>(
             "/v3.0/androidtv/hub/multi-channel-collection/live-and-upcoming.json",
             {
                 platformType: "androidtv",
@@ -278,8 +276,8 @@ export class ParamountClient {
         );
     }
 
-    async getLiveChannels(params: Record<string, any> = {}){
-        return await this.getJson<any>(
+    async getLiveChannels(params: Record<string, any> = {}): Promise<ListResponse<LiveChannelItem>> {
+        return await this.getJson<ListResponse<LiveChannelItem>>(
             `/v3.0/androidphone/live/channels.json`,
             {
                 rows: 125,
@@ -290,8 +288,8 @@ export class ParamountClient {
         );
     }
 
-    async getLiveChannelListings(slug: string, params: Record<string, any> = {}): Promise<any> {
-        return await this.getJson<any>(
+    async getLiveChannelListings(slug: string, params: Record<string, any> = {}): Promise<ListResponse<LiveChannelItem>> {
+        return await this.getJson<ListResponse<LiveChannelItem>>(
             `/v3.0/androidphone/live/channels/${slug}/listings.json`,
             {
                 rows: 125,
@@ -324,16 +322,16 @@ export class ParamountClient {
         );
     }
 
-    async getTrendingMovies(): Promise<any[]> {
-        return await this.getJson<any>("/v3.0/androidphone/movies/trending.json");
+    async getTrendingMovies(): Promise<ListResponse<VodItem>> {
+        return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/movies/trending.json");
     }
 
-    async getTrendingShows(): Promise<any[]> {
-        return await this.getJson<any>("/v3.0/androidphone/shows/trending.json");
+    async getTrendingShows(): Promise<ListResponse<VodItem>> {
+        return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/shows/trending.json");
     }
 
-    async getSearch(term: string): Promise<any[]> {
-        return await this.getJson<any>("/v3.0/androidphone/contentsearch/search.json", {
+    async getSearch(term: string): Promise<ListResponse<VodItem>> {
+        return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/contentsearch/search.json", {
             term,
             rows: 50,
             start: 0,
@@ -344,12 +342,12 @@ export class ParamountClient {
         });
     }
 
-    async getMovie(movieId: string): Promise<any[]> {
-        return await this.getJson<any>(`/v3.0/androidphone/movies/${movieId}.json`);
+    async getMovie(movieId: string): Promise<ListResponse<VodItem>> {
+        return await this.getJson<ListResponse<VodItem>>(`/v3.0/androidphone/movies/${movieId}.json`);
     }
 
-    async getShow(showId: string): Promise<any[]> {
-        return await this.getJson<any>(`/v3.0/androidphone/shows/${showId}.json`);
+    async getShow(showId: string): Promise<ListResponse<VodItem>> {
+        return await this.getJson<ListResponse<VodItem>>(`/v3.0/androidphone/shows/${showId}.json`);
     }
 
     async getShowsGroups(): Promise<any[]> {
@@ -398,7 +396,7 @@ export class ParamountClient {
 
         const list = data?.video_available_season?.itemList ?? [];
         const seasons = list
-            .map(function(x: any){
+            .map(function (x: any) {
                 const n = Number(x?.seasonNum ?? x?.season_number ?? x?.season ?? x);
                 return Number.isFinite(n) ? n : null;
             })

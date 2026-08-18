@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {ParamountAuthStart} from "@/lib/paramount/client";
+import { ParamountAuthStart } from "@/lib/paramount/client";
 import packageInfo from '@/package.json';
 
 function Button({
@@ -31,8 +31,8 @@ function Button({
 }
 
 function TextArea({
-  value,
-  readOnly = false,
+    value,
+    readOnly = false,
 }: {
     value: string;
     readOnly?: boolean;
@@ -118,7 +118,7 @@ export default function ConfigurePage() {
             try {
                 const ok = await pollOnce(paramountAuth);
                 if (ok) clearInterval(t);
-            } catch {}
+            } catch { }
         }, 3000);
 
         return () => clearInterval(t);
@@ -210,14 +210,14 @@ export default function ConfigurePage() {
                                 <div className="mt-5 text-black">
                                     <p>
                                         Go <a href="https://www.paramountplus.com/activate/androidtv/" target="_blank"
-                                              rel="noreferrer" className="text-blue-400">
-                                        here
-                                    </a> and insert:
+                                            rel="noreferrer" className="text-blue-400">
+                                            here
+                                        </a> and insert:
                                     </p>
-                                    <div style={{fontSize: 40, fontWeight: 800, letterSpacing: 6}}>
+                                    <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: 6 }}>
                                         {activationCode}
                                     </div>
-                                    <p style={{opacity: 0.8}}>I am automatically checking every 3 seconds...</p>
+                                    <p style={{ opacity: 0.8 }}>I am automatically checking every 3 seconds...</p>
                                 </div>
                             )}
 
@@ -240,7 +240,7 @@ export default function ConfigurePage() {
                             subtitle="Copy the manifest URL and paste it into Stremio → Addons → Community → Install via URL."
                         >
                             <div className="space-y-3">
-                                <TextArea value={manifestUrl || "Login to generate the manifest URL..."} readOnly/>
+                                <TextArea value={manifestUrl || "Login to generate the manifest URL..."} readOnly />
                                 <div className="flex flex-wrap gap-2">
                                     <Button onClick={onCopyManifest} disabled={!manifestUrl}>
                                         Copy Manifest URL
@@ -249,14 +249,33 @@ export default function ConfigurePage() {
                                     <a
                                         href={stremioInstallUrl || "#"}
                                         onClick={(e) => !stremioInstallUrl && e.preventDefault()}
-                                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition ${
-                                            stremioInstallUrl
-                                                ? "bg-gray-100 text-gray-900 hover:bg-gray-200"
-                                                : "bg-gray-100/60 text-gray-500 cursor-not-allowed"
-                                        }`}
+                                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition ${stremioInstallUrl
+                                            ? "bg-gray-100 text-gray-900 hover:bg-gray-200"
+                                            : "bg-gray-100/60 text-gray-500 cursor-not-allowed"
+                                            }`}
                                     >
                                         Open in Stremio
                                     </a>
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card
+                            title="3 → IPTV (optional)"
+                            subtitle="Use the M3U playlist and EPG in any IPTV player (e.g. TiviMate, VLC)."
+                        >
+                            <div className="space-y-3">
+                                <TextArea value={m3uUrl || "Login to generate the M3U playlist..."} readOnly />
+                                <div className="flex flex-wrap gap-2">
+                                    <Button onClick={onCopyM3u} disabled={!m3uUrl} variant="secondary">
+                                        Copy M3U URL
+                                    </Button>
+                                </div>
+                                <TextArea value={epgUrl || "Login to generate the EPG..."} readOnly />
+                                <div className="flex flex-wrap gap-2">
+                                    <Button onClick={onCopyEpg} disabled={!epgUrl} variant="secondary">
+                                        Copy EPG URL
+                                    </Button>
                                 </div>
                             </div>
                         </Card>
@@ -281,18 +300,18 @@ export default function ConfigurePage() {
                         associated with Paramount Global or its subsidiaries. It is intended for
                         personal use only. Users are responsible for ensuring they have a valid
                         subscription to the service. We do not host or provide any media content;
-                        this tool simply acts as a proxy for legitimate API requests. As described in Paramount's terms and conditions,
-                        using proxy services is considered abuse. Use of this software is at the user's sole discretion,
+                        this tool simply acts as a proxy for legitimate API requests. As described in the Paramount terms and conditions,
+                        using proxy services is considered abuse. Use of this software is at the sole discretion of the user,
                         and we assume no responsibility for its use or any repercussions on the account used.
                     </p>
                     <div className="mt-2">
                         <a href="https://github.com/RioNoir/paramount-stremio"
-                           className="text-xs text-purple-900 hover:underline">
+                            className="text-xs text-purple-900 hover:underline">
                             Source Code
                         </a>
                         <span className="mx-2 text-gray-300">•</span>
                         <a href="https://buymeacoffee.com/rionoir"
-                           className="text-xs text-purple-900 hover:underline">
+                            className="text-xs text-purple-900 hover:underline">
                             Buy me a coffee
                         </a>
                     </div>

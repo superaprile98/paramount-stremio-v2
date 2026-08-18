@@ -22,11 +22,21 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 ## ✨ Features
 
 - Account login with Device Code (like TV)
-- Automatically generated catalogs/meta, always up to date (currently only live TV and sports)
-- Auto-proxed streams directly from the addon (currently only HLS streams work)
+- Automatically generated catalogs/meta, always up to date (live TV, sports, movies and series)
+- Auto-proxed streams directly from the addon (HLS for live/sports, DASH/MPD proxy for VOD)
+- IPTV playlist (M3U) and EPG export for external players
 - Multiple accounts with a single instance of the addon
 
 ## 💥 Known issues
+
+### VOD / DRM limitations (important)
+
+- **VOD content (movies and series) is protected by Widevine DRM** (Irdeto). The desktop Stremio player does **not** include a Widevine CDM, so VOD playback is only possible on players that ship a CDM (e.g. Stremio on Android TV, or external players with Widevine support).
+- The addon proxies the DASH/MPD manifest and the Widevine license endpoint (`/api/proxy/:sid/mpd`, `/api/proxy/:sid/license`) so that players with a CDM can play VOD content. It does **not** decrypt or bypass DRM in any way.
+- If your player has no CDM, VOD streams will stop after a few seconds (the license request fails). This is a player limitation, not an addon bug.
+- Live TV and sports use HLS and work on all players.
+
+### Other known issues
 
 - Some players (such as KSPlayer) may freeze during commercials due to poor support for the m3u #EXT-X-DISCONTINUITY tag (we recommend using libVLC or an external player that supports this tag).
 - If you see an HTTP 403 error during playback, your IP may have been permanently banned (this happens when using a VPN). We recommend changing your DNS server and trying again.
@@ -130,6 +140,51 @@ You can configure or set the following environment variables in an `.env` file. 
 | `HTTP_PROXY` | `https://<username>:<password>@us8682.<vpn-provider>.com:89` | NO       | HTTP/HTTPS/SOCK5 Proxy, all HTTP calls from addon will be made using this. Currently, only one proxy is supported.       |
 | `MFP_URL`    | `http://localhost:8888`                                      | NO       | URL of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                                    |
 | `MFP_PASS`   | `<your-password>`                                            | NO       | Password of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                               |
+| `MFP_EXPIRATION` | `3600`                                                  | NO       | TTL (seconds) of the encrypted MediaFlow Proxy URLs generated via `/generate_url`.                                       |
+| `FORCE_HQ`   | `true`                                                       | NO       | When enabled, sorts HLS variants by bandwidth (highest first) in the rewritten master playlist.                          |
+| `STRIP_DISCONTINUITY` | `true`                                          | NO       | Removes `#EXT-X-DISCONTINUITY` tags from media playlists (workaround for players that freeze on commercials).           |
+| `PPLUS_UPSTREAM_ALLOWED_HOSTS` | `<comma-separated>`                     | NO       | Allowlist of upstream hosts the proxy may relay to (SSRF hardening). Defaults to the Paramount+ domains.                 |
+
+---
+
+## 🗺️ Routes
+
+The addon exposes the following HTTP endpoints (all under the configured `BASE_URL`):
+
+| Route | Description |
+|:------|:------------|
+| `/` | Web UI (login with Device Code, copy manifest / M3U / EPG links) |
+| `/configure` | Same as `/` (alias) |
+| `/api/health` | Health check for orchestration (Docker HEALTHCHECK, load balancers) |
+| `/api/auth/device/start` | Starts the Paramount+ device-code login flow |
+| `/api/auth/device/poll` | Polls the login flow until the user authorizes the device |
+| `/api/stremio/:key/manifest.json` | Stremio addon manifest (catalogs, resources, types) |
+| `/api/stremio/:key/catalog/:type/:id/...` | Stremio catalogs (live, sports, movies, series) |
+| `/api/stremio/:key/meta/:type/:id` | Stremio metadata for a single item |
+| `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS / DASH / MFP) |
+| `/api/stremio/:key/proxy/hls` | Internal HLS proxy (rewrites master/media playlists) |
+| `/api/stremio/:key/proxy/seg` | Internal HLS segment proxy |
+| `/api/stremio/:key/proxy/license` | Internal AES-128 HLS key proxy |
+| `/api/proxy/:sid/mpd` | Internal DASH/MPD proxy for VOD (Widevine) |
+| `/api/proxy/:sid/license` | Internal Widevine license proxy for VOD |
+| `/api/proxy/:sid/seg` | Internal DASH segment proxy for VOD |
+| `/api/iptv/:key/playlist.m3u` | IPTV M3U playlist for external players |
+| `/api/iptv/:key/epg.xml` | IPTV EPG (XMLTV) for external players |
+| `/api/img` | Image proxy (posters, logos) |
+
+> `:key` is the addon session key (JWE-encrypted session). `:sid` is a short-lived cache id generated by the addon.
+
+---
+
+## 🧪 Testing
+
+The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection and the short-id cache.
+
+```bash
+npm install
+npm test        # run all tests once
+npm run test:watch  # watch mode
+```
 
 ---
 

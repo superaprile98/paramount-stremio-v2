@@ -7,6 +7,9 @@ services:
     environment:
       - BASE_URL=http://localhost:7850
       - PORT=7850
+      # P21: KEY_SECRET è la chiave usata per cifrare le sessioni JWE.
+      # DEVE essere cambiata con un valore casuale e lungo (es. `openssl rand -hex 32`).
+      # Il valore "[random]" è un placeholder: l'addon rifiuta di avviarsi con esso.
       - KEY_SECRET=[random]
       - FORCE_HQ=
       - HTTP_PROXY=

@@ -180,7 +180,7 @@ export function rewriteM3U8(params: {
     if (text.includes("#EXT-X-STREAM-INF")) {
         const headerLines: string[] = [];
         const streamInfVariants: { bandwidth: number; info: string; url: string }[] = [];
-        const frameStreamInfVariants: { bandwidth: number; info: string;}[] = [];
+        const frameStreamInfVariants: { bandwidth: number; info: string; }[] = [];
         const footerLines: string[] = [];
 
         for (let i = 0; i < lines.length; i++) {
@@ -232,7 +232,7 @@ export function rewriteM3U8(params: {
         }
 
         const forceHq = process.env.FORCE_HQ === "true";
-        if(forceHq) {
+        if (forceHq) {
             streamInfVariants.sort((a, b) => b.bandwidth - a.bandwidth);
             frameStreamInfVariants.sort((a, b) => b.bandwidth - a.bandwidth);
         }
@@ -261,7 +261,9 @@ export function rewriteM3U8(params: {
             const m = line.match(/URI=["']([^"']+)["']/);
             if (m) {
                 const absKey = new URL(m[1], upstreamUrl).toString();
-                line = line.replace(m[1], toProxy(absKey));
+                // Le chiavi AES-128 vanno al proxy license, non al proxy seg
+                const route = line.startsWith("#EXT-X-KEY") ? "license" : "seg";
+                line = line.replace(m[1], toProxy(absKey, route));
             }
             outMedia.push(line);
             continue;

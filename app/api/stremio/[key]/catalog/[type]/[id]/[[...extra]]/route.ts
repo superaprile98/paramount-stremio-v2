@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
 import { getCatalogMetas } from "@/lib/paramount/catalogs";
+import { safeDecode } from "@/lib/paramount/utils";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,7 @@ function parseExtras(extra?: string[]) {
     for (const seg of extra ?? []) {
         const i = seg.indexOf("=");
         if (i === -1) continue;
-        out[decodeURIComponent(seg.slice(0, i))] = decodeURIComponent(seg.slice(i + 1));
+        out[safeDecode(seg.slice(0, i))] = safeDecode(seg.slice(i + 1));
     }
     const rawGenre = out.genre ? out.genre.replace('.json', '') : undefined;
     return {
