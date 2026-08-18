@@ -8,11 +8,16 @@ services:
       - BASE_URL=http://localhost:7850
       - PORT=7850
       # P21: KEY_SECRET è la chiave usata per cifrare le sessioni JWE.
-      # DEVE essere cambiata con un valore casuale e lungo (es. `openssl rand -hex 32`).
+      # DEVE essere impostata prima dell'avvio, es.:
+      #   export KEY_SECRET=$(openssl rand -hex 32)
       # Il valore "[random]" è un placeholder: l'addon rifiuta di avviarsi con esso.
-      - KEY_SECRET=[random]
+      - KEY_SECRET=06023ebc5af4ac98eeaadf959f2b5ef24be61553f3e3fac79fdf551f3738ba41
       - FORCE_HQ=
-      - HTTP_PROXY=
+      # Proxy HTTP/HTTPS/SOCKS5 per tutte le chiamate verso Paramount+.
+      # Esempio (Webshare, IP auth — nessuna password):
+      #   HTTP_PROXY=http://31.56.127.193:7684
+      # Nota: con IP auth l'IP pubblico dell'host Docker deve essere nella whitelist.
+      - HTTP_PROXY=http://31.56.127.193:7684
       - MFP_URL=
       - MFP_PASS=
     ports:
