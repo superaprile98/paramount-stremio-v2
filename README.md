@@ -43,6 +43,17 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 - If you see an HTTP 403 error during playback, your IP may have been permanently banned (this happens when using a VPN). We recommend changing your DNS server and trying again.
 - The addon login session is valid for one year. If you notice that the addon is no longer working, try logging in again.
 
+## 🛠️ Troubleshooting
+
+### "Failed to fetch" when installing the addon in Stremio desktop
+
+Stremio desktop loads its UI from `https://app.strem.io` (HTTPS). Chromium blocks *mixed content* (HTTPS → HTTP) for security, and **exempts only `localhost`**. If your `BASE_URL` is set to a LAN IP (e.g. `http://192.168.1.9:7850`) and you try to install the addon from the desktop app on the same machine, the manifest fetch is blocked and Stremio shows `Failed to fetch: Failed to fetch`.
+
+**Fix:**
+- If you only use Stremio **on the same PC** that hosts the addon: set `BASE_URL=http://localhost:7850` in `.env`, then `docker compose up -d --build` and re-activate.
+- If you also need to use the addon from a **TV or phone on the LAN**: expose the addon via HTTPS (e.g. Cloudflare Tunnel, ngrok, Tailscale Funnel) and set `BASE_URL` to the public HTTPS URL. The `localhost` and the LAN-IP URLs will both keep working for catalog browsing.
+- The HTML `/configure` page works fine on either URL (no mixed-content restriction on plain HTTP pages loaded directly).
+
 ## 💾 Installation
 
 Before proceeding with the installation, you must generate a <b>random key</b>, which will be used to encrypt the login session.
