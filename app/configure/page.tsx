@@ -63,7 +63,22 @@ async function copyToClipboard(text: string) {
         await navigator.clipboard.writeText(text);
         return true;
     } catch {
-        return false;
+        // Fallback per contesti non sicuri (HTTP su IP LAN): navigator.clipboard
+        // e disponibile solo su HTTPS o localhost, quindi usiamo un textarea
+        // temporaneo con document.execCommand("copy").
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            return ok;
+        } catch {
+            return false;
+        }
     }
 }
 
