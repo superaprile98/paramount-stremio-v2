@@ -226,6 +226,11 @@ export default function ConfigurePage() {
                                             (a separate system) and the code will never be accepted.
                                         </p>
                                         <p className="mt-2">
+                                            The link above is just the standard Paramount+ device-code activation
+                                            page. The androidtv name in the URL is only their internal convention:
+                                            the login works on any device (TV, phone, tablet, browser, IPTV player).
+                                        </p>
+                                        <p className="mt-2">
                                             To activate on the US page, open the link above with a browser that uses
                                             the US proxy <code className="rounded bg-amber-100 px-1">31.56.127.193:7684</code>
                                             (your IP is already whitelisted), or use a US VPN. The page must show the
