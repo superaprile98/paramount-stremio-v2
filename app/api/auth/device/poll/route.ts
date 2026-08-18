@@ -7,11 +7,17 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const auth: ParamountAuthStart | null = await req.json().catch(() => null);
 
-    if (!auth || typeof auth.createdAt !== "string" || Number.isNaN(Date.parse(auth.createdAt))) {
+    if (!auth || typeof auth.createdAt !== "string") {
+        return withCors(Response.json({ ok: false, error: "Invalid auth payload" }, { status: 400 }));
+    }
+    // createdAt è memorizzato come Date.now().toString() (millisecondi come stringa numerica):
+    // Date.parse di una stringa numerica pura ritorna NaN in Node, quindi usiamo Number() esplicito.
+    const createdAtMs = Number(auth.createdAt);
+    if (!Number.isFinite(createdAtMs) || createdAtMs <= 0) {
         return withCors(Response.json({ ok: false, error: "Invalid auth payload" }, { status: 400 }));
     }
 
-    if (Date.now() - Date.parse(auth.createdAt) > 10 * 60 * 1000) {
+    if (Date.now() - createdAtMs > 10 * 60 * 1000) {
         return withCors(Response.json({ ok: false, error: "Auth expired" }, { status: 400 }));
     }
 
