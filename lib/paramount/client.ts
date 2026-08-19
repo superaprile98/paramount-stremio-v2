@@ -326,8 +326,16 @@ export class ParamountClient {
         return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/movies/trending.json");
     }
 
-    async getTrendingShows(): Promise<ListResponse<VodItem>> {
-        return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/shows/trending.json");
+    /**
+     * Endpoint "All Shows" (gruppo 608). L'endpoint `shows/trending.json`
+     * non esiste più: l'API risponde 400 INVALID_PARAMETER ("trending" viene
+     * interpretato come showId). Questo è l'endpoint valido per il catalogo serie.
+     */
+    async getAllShows(): Promise<any> {
+        return await this.getJson<any>("/v2.0/androidphone/shows/group/608.json", {
+            rows: 100,
+            begin: 0,
+        });
     }
 
     async getSearch(term: string): Promise<ListResponse<VodItem>> {

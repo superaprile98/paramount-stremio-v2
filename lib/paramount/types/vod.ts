@@ -5,6 +5,50 @@ import { isLicenseUrl, normImg, pickManifestUrl, pickPoster } from "@/lib/paramo
 import { VodItem } from "@/lib/paramount/types/api";
 
 /**
+ * Cerca ricorsivamente un URL immagine poster all'interno dell'oggetto.
+ * Gli item di movies/trending.json non espongono i campi poster a livello
+ * top-level: le immagini sono annidate (es. movieAssets, movieContent, ...).
+ */
+function findPosterUrl(obj: unknown, depth = 0): string | undefined {
+    if (obj == null || depth > 6) return undefined;
+    if (typeof obj === "string") {
+        return /^https?:\/\//.test(obj) && /(poster|thumb|image|logo|artwork)/i.test(obj)
+            ? obj
+            : undefined;
+    }
+    if (Array.isArray(obj)) {
+        for (const item of obj) {
+            const found = findPosterUrl(item, depth + 1);
+            if (found) return found;
+        }
+        return undefined;
+    }
+    if (typeof obj === "object") {
+        const rec = obj as Record<string, unknown>;
+        // Campi immagine noti, in ordine di priorità
+        for (const key of [
+            "filePathPoster", "posterUrl", "filepathPoster", "poster",
+            "filePathThumb", "filepathThumb", "filePathWideThumb",
+            "filepathShowGroupItemLogo", "filepathShowLogo", "filePathLogo",
+        ]) {
+            const v = rec[key];
+            if (typeof v === "string" && /^https?:\/\//.test(v)) return v;
+        }
+        for (const key of Object.keys(rec)) {
+            if (key.toLowerCase().includes("poster") || key.toLowerCase().includes("thumb")) {
+                const v = rec[key];
+                if (typeof v === "string" && /^https?:\/\//.test(v)) return v;
+            }
+        }
+        for (const key of Object.keys(rec)) {
+            const found = findPosterUrl(rec[key], depth + 1);
+            if (found) return found;
+        }
+    }
+    return undefined;
+}
+
+/**
  * Mapping di un item movie/series (risposta API Paramount+) verso StremioMeta.
  * I campi della risposta variano tra endpoint: usiamo accessi difensivi.
  */
@@ -13,7 +57,9 @@ export function mapMovieToMeta(e: VodItem | null | undefined): StremioMeta | nul
     const title = e?.title ?? e?.name;
     if (!contentId || !title) return null;
 
-    const poster = pickPoster(e) ?? normImg(e?.filePathPoster ?? e?.posterUrl);
+    const poster = pickPoster(e)
+        ?? normImg(e?.filePathPoster ?? e?.posterUrl)
+        ?? findPosterUrl(e);
     const genres = Array.isArray(e?.genres)
         ? e.genres.map((g: any) => String(g?.name ?? g ?? "")).filter(Boolean)
         : [];
@@ -37,7 +83,11 @@ export function mapShowToMeta(e: VodItem | null | undefined): StremioMeta | null
     const title = e?.title ?? e?.name;
     if (!showId || !title) return null;
 
-    const poster = pickPoster(e) ?? normImg(e?.filePathPoster ?? e?.posterUrl);
+    // Gli item di shows/group/{id}.json usano filepathShowGroupItemLogo/filepathShowLogo
+    const poster = pickPoster(e)
+        ?? normImg(e?.filePathPoster ?? e?.posterUrl)
+        ?? normImg((e as any)?.filepathShowGroupItemLogo)
+        ?? normImg((e as any)?.filepathShowLogo);
     const genres = Array.isArray(e?.genres)
         ? e.genres.map((g: any) => String(g?.name ?? g ?? "")).filter(Boolean)
         : [];
@@ -48,7 +98,7 @@ export function mapShowToMeta(e: VodItem | null | undefined): StremioMeta | null
         name: String(title),
         poster,
         background: poster,
-        logo: normImg(e?.filePathLogo),
+        logo: normImg(e?.filePathLogo ?? (e as any)?.filepathShowLogo),
         posterShape: "poster",
         description: String(e?.description ?? e?.longDescription ?? ""),
         releaseInfo: e?.year ? String(e.year) : undefined,
@@ -64,6 +114,14 @@ function extractItems(data: unknown): VodItem[] {
     if (Array.isArray((data as any)?.data?.items)) return (data as any).data.items as VodItem[];
     if (Array.isArray((data as any)?.data?.itemList)) return (data as any).data.itemList as VodItem[];
     if (Array.isArray((data as any)?.result)) return (data as any).result as VodItem[];
+    // Endpoint shows/group/{id}.json → { group: { showGroupItems: [...] } }
+    if (Array.isArray((data as any)?.group?.showGroupItems)) return (data as any).group.showGroupItems as VodItem[];
+    // Endpoint movies/trending.json → { trending: [ { content: {...} } ] }
+    if (Array.isArray((data as any)?.trending)) {
+        return (data as any).trending
+            .map((t: any) => t?.content ?? t)
+            .filter(Boolean) as VodItem[];
+    }
     return [];
 }
 
@@ -77,7 +135,7 @@ export async function getTrendingMovies(session: ParamountSession): Promise<Stre
 export async function getTrendingShows(session: ParamountSession): Promise<StremioMeta[]> {
     const client = new ParamountClient();
     await client.setSession(session);
-    const data = await client.getTrendingShows();
+    const data = await client.getAllShows();
     return extractItems(data).map(mapShowToMeta).filter(Boolean) as StremioMeta[];
 }
 
