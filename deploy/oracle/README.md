@@ -76,14 +76,6 @@ sudo bash scripts/deploy-docker.sh
 ```
 
 > Se non hai ancora clonato il repo sulla VM: `sudo git clone https://github.com/superaprile98/paramount-stremio-v2.git /opt/paramount-stremio && cd /opt/paramount-stremio`.
->
-> ⚠️ Il repo è **privato**: il clone via HTTPS chiede le credenziali. GitHub non accetta più la password: usa un **Personal Access Token** (Settings → Developer settings → Personal access tokens → Generate new token, scope `repo`) e clona con:
->
-> ```bash
-> sudo git clone https://<TOKEN>@github.com/superaprile98/paramount-stremio-v2.git /opt/paramount-stremio
-> ```
->
-> Oppure configura una chiave SSH sulla VM (consigliato per gli aggiornamenti automatici con `update-docker.sh`).
 
 Lo script:
 1. Rileva `dnf` o `apt` automaticamente

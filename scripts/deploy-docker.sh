@@ -18,8 +18,6 @@
 #
 # Variabili opzionali (env):
 #   REPO_URL   = git clone URL (default: https://github.com/superaprile98/paramount-stremio-v2.git)
-#                Se il repo è privato, usa un Personal Access Token:
-#                REPO_URL=https://<TOKEN>@github.com/superaprile98/paramount-stremio-v2.git
 #   BRANCH     = branch da deployare (default: main)
 #   PORT       = porta pubblica (default: 7850)
 #   BASE_URL   = URL pubblico (default: http://<public-ip>:PORT)
