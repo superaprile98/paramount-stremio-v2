@@ -159,10 +159,25 @@ Poi `sudo bash scripts/update-docker.sh`.
 
 Stai navigando su `http://` ma Stremio desktop può avere problemi con HTTP (mixed content se apri il link da una pagina HTTPS). Soluzioni:
 
-- Usa **HTTPS** (sezione Opzionale: nginx + Let's Encrypt).
+- Usa **HTTPS** (sezione 5 sotto).
 - Oppure apri Stremio desktop e aggiungi manualmente l'addon via URL.
 
-## 5. Opzionale: nginx + HTTPS (Let's Encrypt)
+### 5a. Se usi Nginx Proxy Manager (consigliato)
+
+Se hai già NPM installato sulla stessa VPS via `docker compose` (tipicamente in una cartella `server-stack/`), `docker-compose.yml` è già configurato per collegarsi alla network `server-stack_default` di NPM.
+
+1. Verifica network: `sudo docker network ls | grep server-stack_default`
+2. Ricostruisci Paramount: `cd /opt/paramount-stremio && sudo docker compose up -d --build`
+3. In NPM → **Hosts → Add Proxy Host**:
+   - **Domain Names**: `<tuo-dominio-duckdns>`
+   - **Forward Hostname/IP**: `paramount-stremio` (nome del container, non IP)
+   - **Forward Port**: `7850`
+   - **SSL**: Request a new Let's Encrypt certificate
+4. Aggiorna `BASE_URL=https://<tuo-dominio-duckdns>` in `.env` e `sudo docker compose up -d`.
+
+> Se non usi NPM o la network Docker ha un nome diverso, commenta le righe `server-stack_default` in `docker-compose.yml` (in `services.paramount.networks` e in `networks:` in fondo) e usa come Forward Hostname/IP `10.0.0.151` (IP privato della VM).
+
+### 5.1 Alternativa: nginx puro + Let's Encrypt (senza NPM)
 
 Per HTTPS pubblico, metti nginx davanti al container:
 

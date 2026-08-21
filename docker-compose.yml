@@ -45,6 +45,16 @@ services:
       # Sessioni Paramount (cookies cifrati JWE) + prefs sportive.
       # Il volume named evita problemi di ownership (l'immagine gira come uid 1000).
       - paramount-data:/app/.data
+    # Network esterne a cui il container deve collegarsi.
+    # `server-stack_default` è la network di Nginx Proxy Manager (presente se
+    # hai installato NPM con docker compose in una cartella `server-stack/`).
+    # Grazie a questa network, NPM può raggiungere il container col nome
+    # `paramount-stremio` invece di dover usare l'IP dell'host.
+    # Se NON usi NPM con docker compose (es. binario o altro stack), commenta
+    # le righe `server-stack_default` qui sotto e nella sezione `networks:`.
+    networks:
+      - default
+      - server-stack_default
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -64,3 +74,15 @@ services:
 
 volumes:
   paramount-data:
+
+networks:
+  default:
+    name: paramount-stremio_default
+  # Network di Nginx Proxy Manager: esiste già sull'host (creata dal suo
+  # docker-compose). La dichiariamo come `external: true` perché NON dobbiamo
+  # crearla noi. Se in futuro la network non esiste più, `docker compose up`
+  # fallirà: in quel caso commenta le righe `server-stack_default` (sia qui
+  # sia nella sezione `services.paramount.networks`).
+  server-stack_default:
+    name: server-stack_default
+    external: true
