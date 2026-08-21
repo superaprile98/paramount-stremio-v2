@@ -34,6 +34,11 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/next.config.ts ./next.config.ts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 
+# Directory dati persistente (sessioni + prefs) montata come volume named.
+# Deve esistere e appartenere a node (uid 1000) altrimenti il volume
+# verrebbe creato di proprietà di root e l'app non potrebbe scrivere.
+RUN mkdir -p /app/.data && chown -R node:node /app/.data
+
 # Esegui come utente non-root
 USER node
 

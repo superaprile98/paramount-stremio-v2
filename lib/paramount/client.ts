@@ -276,6 +276,23 @@ export class ParamountClient {
         );
     }
 
+    /**
+     * Listing per singola competizione (Fase 1/2).
+     * Risposta: { listing: SportListingItem[], previousListings: SportListingItem[], channel: any[] }.
+     * `previousListings` contiene le partite terminate (replay).
+     */
+    async getSportLeagueListings(slug: string, params: Record<string, any> = {}): Promise<any> {
+        return await this.getJson<any>(
+            `/v3.0/androidtv/live/channels/${encodeURIComponent(slug)}/listings.json`,
+            {
+                platformType: "androidtv",
+                rows: 100,
+                start: 0,
+                ...params,
+            }
+        );
+    }
+
     async getLiveChannels(params: Record<string, any> = {}): Promise<ListResponse<LiveChannelItem>> {
         return await this.getJson<ListResponse<LiveChannelItem>>(
             `/v3.0/androidphone/live/channels.json`,

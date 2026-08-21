@@ -1,8 +1,28 @@
 import { ParamountSession } from "@/lib/paramount/client";
 import { StremioMeta } from "@/lib/stremio/types";
-import { getSportListing, mapSportListingToMeta } from "@/lib/paramount/types/sports";
 import { getLiveListing, mapLiveListingToMeta } from "@/lib/paramount/types/live";
 import { getTrendingMovies, getTrendingShows, searchVod } from "@/lib/paramount/types/vod";
+import {
+    getSportLeagues,
+    getLeagueEvents,
+    applyPrefs,
+    mapSportEventToMeta,
+} from "@/lib/paramount/sports";
+import { getPrefs } from "@/lib/paramount/prefs";
+import { SportEvent } from "@/lib/paramount/types/sport-models";
+
+/** Leghe con una sezione dedicata nella home (le altre vanno in "Altro"). */
+export const CURATED_LEAGUE_KEYS = new Set<string>([
+    "serie-a",
+    "uefa-champions-league",
+    "uefa-europa-league",
+    "uefa-conference-league",
+]);
+
+/** Ritorna true se la lega ha una sezione dedicata nella home (le altre vanno in "Altro"). */
+export function isCuratedLeague(leagueKey: string): boolean {
+    return CURATED_LEAGUE_KEYS.has(leagueKey);
+}
 
 function stripJsonSuffix(s: string) {
     return s.endsWith(".json") ? s.slice(0, -5) : s;
@@ -12,11 +32,17 @@ function safeLower(s?: string) {
     return (s ?? "").toLowerCase();
 }
 
+/**
+ * Vista sports-only: 4 sezioni curate + 1 sezione "Altro".
+ * La sezione "Altro" accetta un filtro genre che puo' essere:
+ *  - "Live" / "Upcoming" / "Replay" (filtro di stato)
+ *  - il nome di una lega (es. "UFC", "NFL on CBS") → filtra per quella lega
+ */
 export async function getCatalogMetas(args: {
     type: string;
     id: string;
     session: ParamountSession;
-    extra?: { search?: string; skip?: number; genre?: "Live" | "Upcoming" };
+    extra?: { search?: string; skip?: number; genre?: string };
 }): Promise<StremioMeta[]> {
     const { type, session, extra } = args;
     const id = stripJsonSuffix(args.id);
@@ -54,35 +80,41 @@ export async function getCatalogMetas(args: {
         return filteredBySearch.slice(skip, skip + pageSize);
     }
 
-    //Sport
-    if (type === "tv" && id === "pplus_sports") {
-        const sportListings: any[] = await getSportListing(session, false);
+    //Sport — vista sports-only (4 sezioni curate + "Altro")
+    if (type === "sport" && id.startsWith("pplus_sports_")) {
+        const profileId = session.profileId ?? 0;
+        const prefs = getPrefs(profileId);
 
-        const now = Date.now();
-        const filteredByGenre = genre === "Live"
-            ? sportListings.filter((e) => {
-                const startMs = typeof e.startTimestamp === "number" ? e.startTimestamp
-                    : typeof e.streamStartTimestamp === "number" ? e.streamStartTimestamp : undefined;
-                const endMs = typeof e.endTimestamp === "number" ? e.endTimestamp
-                    : typeof e.streamEndTimestamp === "number" ? e.streamEndTimestamp : undefined;
-                if (e?.isListingLive === true) return true;
-                if (startMs && endMs && startMs <= now && now < endMs) return true;
-                return false;
-            })
-            : genre === "Upcoming"
-                ? sportListings.filter((e) => {
-                    if (e?.isListingLive === true) return false;
-                    const startMs = typeof e.startTimestamp === "number" ? e.startTimestamp
-                        : typeof e.streamStartTimestamp === "number" ? e.streamStartTimestamp : undefined;
-                    return startMs !== undefined && startMs > now;
-                })
-                : sportListings;
+        let events: SportEvent[] = [];
 
-        const sportMetas = filteredByGenre.map(mapSportListingToMeta).filter(Boolean) as StremioMeta[];
+        if (id === "pplus_sports_other") {
+            // "Altro": tutte le leghe tranne quelle curate.
+            const leagues = await getSportLeagues(session);
 
-        sportMetas.sort((a, b) => {
-            return (a.releaseInfo ?? "").localeCompare(b.releaseInfo ?? "");
-        });
+            // Se il genre e' il nome di una lega, filtriamo per quella lega.
+            // Altrimenti mostriamo tutte le leghe non curate.
+            const filterByLeagueName = genre && genre !== "Live" && genre !== "Upcoming" && genre !== "Replay";
+            const targetLeagues = filterByLeagueName
+                ? leagues.filter((l) => l.name === genre && !CURATED_LEAGUE_KEYS.has(l.key))
+                : leagues.filter((l) => !CURATED_LEAGUE_KEYS.has(l.key));
+
+            for (const league of targetLeagues) {
+                const leagueEvents = await getLeagueEvents(session, league.key, true);
+                events.push(...applyPrefs(leagueEvents, prefs));
+            }
+        } else {
+            // pplus_sports_<leagueKey>: una singola competizione (Serie A, UCL, UEL, UECL).
+            const leagueKey = id.slice("pplus_sports_".length);
+            const leagueEvents = await getLeagueEvents(session, leagueKey, true);
+            events = applyPrefs(leagueEvents, prefs);
+        }
+
+        // Filtro per stato (Live/Upcoming/Replay) se richiesto.
+        if (genre === "Live") events = events.filter((e) => e.status === "live");
+        else if (genre === "Upcoming") events = events.filter((e) => e.status === "upcoming");
+        else if (genre === "Replay") events = events.filter((e) => e.status === "replay");
+
+        const sportMetas = events.map(mapSportEventToMeta).filter(Boolean) as StremioMeta[];
 
         const filteredBySearch = search
             ? sportMetas.filter((m) => safeLower(m.name).includes(search))

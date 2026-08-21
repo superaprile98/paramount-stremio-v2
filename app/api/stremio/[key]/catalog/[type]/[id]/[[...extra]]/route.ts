@@ -16,7 +16,9 @@ function parseExtras(extra?: string[]) {
     return {
         search: out.search ? out.search.replace('.json', '') : "",
         skip: out.skip ? Number(out.skip.replace('.json', '')) : 0,
-        genre: rawGenre as "Live" | "Upcoming" | undefined,
+        // genre puo' essere uno stato (Live/Upcoming/Replay) oppure il nome
+        // di una lega (per il catalogo "Altro" con dropdown per lega).
+        genre: rawGenre as "Live" | "Upcoming" | "Replay" | undefined,
     };
 }
 

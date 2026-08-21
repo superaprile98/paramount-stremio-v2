@@ -26,6 +26,27 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 - Auto-proxed streams directly from the addon (HLS for live/sports, DASH/MPD proxy for VOD)
 - IPTV playlist (M3U) and EPG export for external players
 - Multiple accounts with a single instance of the addon
+- **Sports-only view** with per-league catalogs (custom `Sport` content type), replays and per-profile preferences
+
+## ⚽ Sports view
+
+The addon exposes a dedicated **sports-only** experience in Stremio. Catalogs use the custom `sport` content type (displayed as **Sport** in Stremio) and are organized as **5 fixed home sections**:
+
+1. **Serie A** — the Italian Serie A.
+2. **UEFA Champions League**
+3. **UEFA Europa League**
+4. **UEFA Conference League**
+5. **Altro** — every other sport/league on Paramount+ (Premier League, NBA, NFL on CBS, UFC, etc.) in a single section.
+
+Each section is browsable by genre:
+
+- `Live`, `Upcoming`, `Replay` — filter the section by match status.
+- For the **Altro** section only, the dropdown also lists the names of the remaining leagues: selecting a league shows only that league's events.
+
+- **Replays** — finished matches can be re-watched from each catalog. Note: replays depend on Paramount's `previousListings` field being populated, which is empty at the start of each season. The replay-classification logic was hardened so that listings without an explicit `endMs` are now correctly shown as `Replay` rather than dropped.
+- **Per-profile preferences** — each profile can set **one or more favorite teams** (with quick-pick suggestions like Inter, Milan, Juventus, Roma, Lazio, Napoli, Atalanta, Fiorentina) and **show/hide** individual leagues. Favorite teams are highlighted at the top of every Sport catalog. Configure them on the `/configure` page (the ⚽ Sports View banner at the top of the page).
+
+> Movies and series are intentionally **not** part of the sports view; they remain available through the standard catalogs.
 
 ## 💥 Known issues
 
@@ -54,6 +75,15 @@ Stremio desktop loads its UI from `https://app.strem.io` (HTTPS). Chromium block
 - If you also need to use the addon from a **TV or phone on the LAN**: expose the addon via HTTPS (e.g. Cloudflare Tunnel, ngrok, Tailscale Funnel) and set `BASE_URL` to the public HTTPS URL. The `localhost` and the LAN-IP URLs will both keep working for catalog browsing.
 - The HTML `/configure` page works fine on either URL (no mixed-content restriction on plain HTTP pages loaded directly).
 
+### "Open in Stremio" button on `/configure` does nothing
+
+The `/configure` page builds a `stremio://<manifest-url>` deep link from the **Host header** of the request. When the addon is running locally:
+
+- If `BASE_URL` is **not** set, the deep link uses whatever hostname you opened `/configure` on (e.g. `http://localhost:7850`, `http://192.168.1.9:7850`). Stremio desktop can install from `localhost` or from the same LAN IP, so it should work as long as both machines are on the same network. Otherwise, the deep link opens Stremio but the manifest is unreachable, so the install fails silently.
+- If the deep link points to a private/LAN address, `/configure` shows a yellow ⚠️ **Local address detected** banner that explains the situation and tells you to either set `BASE_URL` to a public domain or copy the manifest URL manually and paste it into Stremio (*Addons → Community → Install via URL*).
+
+**Fix:** set `BASE_URL` to the URL that Stremio desktop will be able to reach (typically `http://localhost:7850` for a same-PC install, or your public HTTPS URL when exposing the addon on the internet), then re-activate the addon.
+
 ## 💾 Installation
 
 Before proceeding with the installation, you must generate a <b>random key</b>, which will be used to encrypt the login session.
@@ -72,7 +102,49 @@ If you don't have the option to host the add-on on your own server, you can easi
 
 <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FRioNoir%2Fparamount-stremio&env=BASE_URL,KEY_SECRET,TIMEZONE&project-name=paramount-stremio&repository-name=paramount-stremio"><img src="https://vercel.com/button" alt="Deploy with Vercel"/></a>
 
-Please note: On Vercel the add-on may not work due to IP blocking. 
+Please note: On Vercel the add-on may not work due to IP blocking.
+
+---
+
+### 🆓 Deploy on Oracle Cloud Free Tier (recommended for a public URL)
+
+Oracle Cloud offers **Always Free** ARM/Ampere A1 instances — enough to run this addon 24/7 with a public IP. The recommended setup is **Docker-first**: a single idempotent script installs Docker, generates `.env` (with a fresh `KEY_SECRET`), builds the image and starts the container with `docker compose`. The container runs as a non-root user with a named volume for persistent data and an automatic healthcheck.
+
+The installer auto-detects the distro and works on **Oracle Linux 9** (`dnf`) and **Ubuntu 22.04/24.04 LTS** (`apt`) — both officially supported on Ampere A1 Always Free.
+
+**Prereqs**: a VM.Standard.A1.Flex instance running Oracle Linux 9 or Ubuntu 22.04/24.04, with ports `7850` (or `80`/`443`) open in the Oracle Security List, SSH key, and this repo already cloned to `/opt/paramount-stremio`. The addon runs comfortably on **2 OCPU + 12 GB RAM** (or any config with ≥ 2 GB RAM). With 1 GB RAM you need to add swap — see below.
+
+```bash
+# 1) (Only on 1 GB RAM VMs) install swap — not needed on 2+ GB.
+sudo bash scripts/setup-swap.sh   # opzionale se la VM ha >= 2 GB RAM
+
+# 2) Run the Docker installer
+sudo bash scripts/deploy-docker.sh
+#   - detects your public IP automatically
+#   - installs Docker Engine + compose plugin (get.docker.com)
+#   - clones/updates the repo in /opt/paramount-stremio
+#   - creates .env from .env.example and generates KEY_SECRET
+#   - docker compose up -d --build
+#   - waits for the /api/health healthcheck and prints the final URL
+
+# 3) Open the Security List ingress for port 7850 (or put nginx + Let's Encrypt in front)
+
+# 4) To update later:
+sudo bash scripts/update-docker.sh
+```
+
+**Useful commands**:
+
+```bash
+docker compose ps
+docker compose logs -f            # live log
+docker compose restart
+sudo nano /opt/paramount-stremio/.env   # change BASE_URL/PORT/KEY_SECRET here
+```
+
+> A bare-metal alternative (Node.js + `systemd`, no Docker) is also available: `sudo bash scripts/install-oracle.sh` / `scripts/update-oracle.sh`. See [`deploy/oracle/README.md`](deploy/oracle/README.md) § 7.
+
+Full guide, troubleshooting, and optional nginx + Let's Encrypt setup: see [`deploy/oracle/README.md`](deploy/oracle/README.md).
 
 ---
 
@@ -119,22 +191,17 @@ Addon web ui will be available at: `http://localhost:7850`
 ### 🐳 Install with docker compose (recommended)
 
 The following tools are required for docker installation: [git](https://git-scm.com/install/), [docker](https://docs.docker.com/engine/install/).<br><br>
-**Create a `docker-compose.yml` and enter the following:**
+The repo ships a production-ready [`docker-compose.yml`](docker-compose.yml) (non-root user, named volume for persistent data, log rotation, memory cap, healthcheck). Just configure the environment and start:
 
 ```bash
-services:
-  paramount-stremio:
-    build: https://github.com/RioNoir/paramount-stremio.git#main
-    container_name: Paramount-Stremio
-    environment:
-      - BASE_URL=http://localhost:7850 #required
-      - KEY_SECRET=[random-key] #required
-      - PORT=7850 #optional (default: 7850)
-    restart: unless-stopped
-    ports:
-      - "7850:7850"
+git clone https://github.com/superaprile98/paramount-stremio-v2.git
+cd paramount-stremio-v2
+
+cp .env.example .env
+# edit .env: set KEY_SECRET (openssl rand -hex 32) and BASE_URL
+
+docker compose up -d --build
 ```
-**Start addon with `docker compose up -d`** <br>
 Addon web ui will be available at: `http://localhost:7850`
 
 ---
@@ -174,6 +241,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 | `/api/stremio/:key/catalog/:type/:id/...` | Stremio catalogs (live, sports, movies, series) |
 | `/api/stremio/:key/meta/:type/:id` | Stremio metadata for a single item |
 | `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS / DASH / MFP) |
+| `/api/stremio/:key/prefs` | Per-profile sports preferences (GET) and actions (POST: set, addTeam, removeTeam, hideLeague, showLeague) |
 | `/api/stremio/:key/proxy/hls` | Internal HLS proxy (rewrites master/media playlists) |
 | `/api/stremio/:key/proxy/seg` | Internal HLS segment proxy |
 | `/api/stremio/:key/proxy/license` | Internal AES-128 HLS key proxy |
@@ -190,7 +258,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 
 ## 🧪 Testing
 
-The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection and the short-id cache.
+The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection, the short-id cache, and the sports data model (team keys, team parsing, status derivation, league normalization, preferences filtering and priority ordering).
 
 ```bash
 npm install

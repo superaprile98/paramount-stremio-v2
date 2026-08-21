@@ -165,10 +165,26 @@ export function copyRespHeaders(headers: Headers) {
     return out;
 }
 
-export function guessBaseUrl(req: NextRequest) {
-    if (process.env.BASE_URL) {
+export function guessBaseUrl(req: NextRequest): string {
+    // Priorita' 1: variabile d'ambiente esplicita
+    if (process.env.BASE_URL && process.env.BASE_URL.trim().length > 0) {
         return process.env.BASE_URL.replace(/\/$/, '');
     }
+
+    // Priorita' 2: header "Host" della richiesta.
+    // Quando si apre /configure dal PC locale ma Stremio desktop gira
+    // sullo stesso PC (o sulla stessa LAN), l'URL "ufficiale" e' quello
+    // nell'header Host, che puo' essere un IP LAN (es. 192.168.1.10:3000)
+    // anziche' localhost. Usiamo quello per generare il manifest URL cosi'
+    // che Stremio possa raggiungerlo.
+    const hostHeader = req.headers.get("host");
+    if (hostHeader) {
+        const xfProto = req.headers.get("x-forwarded-proto");
+        const proto = xfProto ? xfProto.split(",")[0].trim() : (new URL(req.url).protocol.replace(":", ""));
+        return `${proto}://${hostHeader}`;
+    }
+
+    // Priorita' 3: origin dalla URL della richiesta
     return new URL(req.url).origin;
 }
 

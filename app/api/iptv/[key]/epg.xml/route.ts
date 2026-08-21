@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
 import { getLiveListing } from "@/lib/paramount/types/live";
-import { getSportListing } from "@/lib/paramount/types/sports";
+import { getLiveUpcomingSportListings } from "@/lib/paramount/sports";
 import { IptvChannel, mapLiveChannel, mapSportChannel, xmlEscape, xmlTvDate, tvgId, tvgSportId } from "@/lib/paramount/iptv";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ key: strin
 
     const [liveListings, sportListings] = await Promise.all([
         getLiveListing(session),
-        getSportListing(session, false),
+        getLiveUpcomingSportListings(session, false),
     ]);
 
     const liveChannels = liveListings.map(mapLiveChannel).filter((ch): ch is IptvChannel => ch !== null);

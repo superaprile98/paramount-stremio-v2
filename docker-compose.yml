@@ -1,9 +1,27 @@
+# docker-compose.yml — produzione (Docker-first)
+#
+# Setup pulito e sicuro:
+#   - init: true            → PID 1 corretto (reaping zombie, segnali a Node)
+#   - cap_drop: [ALL]       → nessuna capability Linux superflua
+#   - no-new-privileges     → blocca escalation di privilegi
+#   - volume named          → .data (sessioni + prefs) sopravvive a rebuild/restart
+#   - log rotation          → max 10 MB × 3 file, niente disco pieno
+#   - mem_limit: 2g         → cap generoso (next start ≈ 150 MB RSS + proxy HLS)
+#   - healthcheck           → /api/health per orchestrazione
+#
+# Uso:
+#   cp .env.example .env   # poi imposta KEY_SECRET e BASE_URL
+#   docker compose up -d --build
+
 services:
   paramount:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: Paramount
+    image: paramount-stremio:latest
+    container_name: paramount-stremio
+    init: true
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -19,6 +37,30 @@ services:
       - HTTP_PROXY=${HTTP_PROXY:-}
       - MFP_URL=${MFP_URL:-}
       - MFP_PASS=${MFP_PASS:-}
+      # Persistenza prefs (squadre preferite, leghe nascoste) dentro il volume.
+      - PREFS_DIR=/app/.data/prefs
     ports:
-      - "7850:7850"
-    restart: unless-stopped
+      - "${PORT:-7850}:${PORT:-7850}"
+    volumes:
+      # Sessioni Paramount (cookies cifrati JWE) + prefs sportive.
+      # Il volume named evita problemi di ownership (l'immagine gira come uid 1000).
+      - paramount-data:/app/.data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 2g
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:${PORT:-7850}/api/health" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  paramount-data:

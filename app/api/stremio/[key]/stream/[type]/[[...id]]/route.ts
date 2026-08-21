@@ -10,7 +10,7 @@ import {
     safeDecode,
     stripJsonSuffix
 } from "@/lib/paramount/utils";
-import { resolveSportStream } from "@/lib/paramount/types/sports";
+import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
 import { resolveVodStream } from "@/lib/paramount/types/vod";
 import { wrapUrlWithMediaFlow } from "@/lib/mediaflowproxy/mediaflowproxy";
@@ -58,7 +58,8 @@ export async function GET(
 
     let streamData = null;
     if (parsed.kind === "sport") {
-        streamData = await resolveSportStream(session, parsed.key);
+        const event = await findSportEvent(session, parsed.key);
+        streamData = event ? await resolveSportEventStream(session, event) : null;
     } else if (parsed.kind === "live") {
         streamData = await resolveLiveStream(session, parsed.key);
     } else if (parsed.kind === "movie" || parsed.kind === "series") {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
 import { parsePplusId } from "@/lib/paramount/mapping";
 import { safeDecode, stripJsonSuffix } from "@/lib/paramount/utils";
-import { buildSportMeta } from "@/lib/paramount/types/sports";
+import { findSportEvent, mapSportEventToMeta } from "@/lib/paramount/sports";
 import { buildLiveMeta } from "@/lib/paramount/types/live";
 import { buildMovieMeta, buildSeriesMeta } from "@/lib/paramount/types/vod";
 
@@ -25,8 +25,9 @@ export async function GET(
 
     const parsed = parsePplusId(decoded);
 
-    if (parsed.kind === "sport" && type === "tv") {
-        const meta = await buildSportMeta(session, parsed.key);
+    if (parsed.kind === "sport" && (type === "tv" || type === "sport")) {
+        const event = await findSportEvent(session, parsed.key);
+        const meta = event ? mapSportEventToMeta(event) : null;
         return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
