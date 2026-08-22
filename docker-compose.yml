@@ -51,7 +51,10 @@ services:
       - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=openvpn
       # Abilita il proxy HTTP locale (ascolta su 8888 di default).
-      - HTTP_PROXY=on
+      # NOTA: la variabile di gluetun è HTTPPROXY (senza underscore),
+      # NON HTTP_PROXY (quella è la generica env var dei proxy e NON
+      # abilita il proxy server di gluetun).
+      - HTTPPROXY=on
       # DNS: usa i DNS di ProtonVPN per evitare leak.
       - DNS_ADDRESS=10.2.0.1
     # NON esporre il proxy all'esterno: il container paramount lo raggiunge
