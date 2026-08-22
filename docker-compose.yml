@@ -38,14 +38,15 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    # env_file scritto dall'addon (UI /configure). Contiene OPENVPN_USER,
-    # OPENVPN_PASSWORD, SERVER_COUNTRIES. Stesso path sull'host → la systemd
-    # path unit (scripts/install-gluetun-watcher.sh) osserva le modifiche e
-    # riavvia gluetun automaticamente, niente SSH.
-    volumes:
-      - ./vpn-data/gluetun.env:/gluetun/gluetun.env:ro
+    # env_file scritto dall'addon (UI /configure) in ./vpn-data/gluetun.env
+    # (path HOST, relativo al compose file). Contiene OPENVPN_USER,
+    # OPENVPN_PASSWORD, SERVER_COUNTRIES. La systemd path unit
+    # (scripts/install-gluetun-watcher.sh) osserva le modifiche e riavvia
+    # gluetun automaticamente, niente SSH.
+    # NOTA: il file deve esistere prima di `up` (lo creano gli script
+    # install-gluetun-watcher.sh / restart-gluetun.sh / deploy-vpn-update.sh).
     env_file:
-      - /gluetun/gluetun.env
+      - ./vpn-data/gluetun.env
     environment:
       - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=openvpn

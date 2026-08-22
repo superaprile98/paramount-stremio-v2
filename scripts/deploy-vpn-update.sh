@@ -37,7 +37,15 @@ docker compose up -d --build
 
 echo "==> [3/4] Crea dir vpn-data se mancante (per gluetun.env)"
 mkdir -p vpn-data
+# L'addon (container paramount, uid 1000) scrive qui gluetun.env via bind
+# mount ./vpn-data:/app/.data/vpn: senza ownership corretta → EACCES.
+chown 1000:1000 vpn-data || true
 chmod 700 vpn-data || true
+# Placeholder: `docker compose up` fallisce se l'env_file non esiste.
+if [ ! -f vpn-data/gluetun.env ]; then
+    echo "# Placeholder — credenziali non ancora salvate dall'UI /configure." > vpn-data/gluetun.env
+    chown 1000:1000 vpn-data/gluetun.env 2>/dev/null || true
+fi
 
 echo "==> [4/5] Crea il container gluetun (profilo vpn) se non esiste"
 docker compose --profile vpn up -d gluetun || true

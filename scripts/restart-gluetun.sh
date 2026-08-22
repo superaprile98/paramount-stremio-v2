@@ -42,6 +42,13 @@ ADDON_DIR="${ADDON_DIR:-/opt/paramount-stremio}"
 cd "${ADDON_DIR}"
 
 echo "==> Ensuring gluetun container (profile vpn)…"
+# Crea un env file placeholder se manca: `docker compose up` fallisce se
+# l'env_file (./vpn-data/gluetun.env) non esiste. Le credenziali vere le
+# scrive l'addon dalla UI /configure (uid 1000 = utente node del container).
+if [ ! -f vpn-data/gluetun.env ]; then
+    echo "# Placeholder — credenziali non ancora salvate dall'UI /configure." > vpn-data/gluetun.env
+    chown 1000:1000 vpn-data/gluetun.env 2>/dev/null || true
+fi
 # `up -d` crea il container se non esiste ancora e lo ricrea se la config
 # è cambiata. `restart` fallirebbe se il container non è mai stato avviato.
 docker compose --profile vpn up -d gluetun

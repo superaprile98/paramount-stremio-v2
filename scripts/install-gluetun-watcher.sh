@@ -30,7 +30,12 @@ if [ "${1:-}" = "--uninstall" ]; then
 fi
 
 # Verifica che la directory esista (verrà creata al primo salvataggio UI).
-mkdir -p "$(dirname "${WATCH_FILE}")"
+# Deve appartenere a uid 1000 (utente `node` del container paramount):
+# l'addon scrive qui gluetun.env via il bind mount ./vpn-data:/app/.data/vpn.
+NODE_UID="${NODE_UID:-1000}"
+WATCH_DIR="$(dirname "${WATCH_FILE}")"
+mkdir -p "${WATCH_DIR}"
+chown "${NODE_UID}:${NODE_UID}" "${WATCH_DIR}" 2>/dev/null || true
 
 # Verifica che docker compose sia disponibile.
 if ! command -v docker >/dev/null 2>&1; then
@@ -76,7 +81,11 @@ cat > "${PATH_FILE}" <<EOF
 Description=Watch ${WATCH_FILE} for changes (addon writes here from UI)
 
 [Path]
+# Trigger sia alla creazione (primo salvataggio credenziali) sia ad ogni
+# modifica successiva (cambio server/password). PathExists da solo scatta
+# solo alla creazione.
 PathExists=${WATCH_FILE}
+PathModified=${WATCH_FILE}
 Unit=${SERVICE_NAME}.service
 
 [Install]
