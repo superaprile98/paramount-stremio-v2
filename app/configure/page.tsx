@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ParamountAuthStart } from "@/lib/paramount/client";
+import { VpnSetupCard } from "./vpn-card";
 import packageInfo from '@/package.json';
 
 /** Esempi rapidi di squadre italiane popolari (Serie A). */
@@ -697,6 +698,10 @@ export default function ConfigurePage() {
                                 </div>
                             </div>
                         </Card>
+                    </div>
+
+                    <div className="mt-6">
+                        <VpnSetupCard onToast={showToast} />
                     </div>
                 </div>
 

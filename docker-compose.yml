@@ -15,6 +15,9 @@
 
 services:
   # ── Tunnel VPN ProtonVPN (WireGuard) via gluetun ─────────────────────────
+  # OPZIONALE: si attiva con `docker compose --profile vpn up -d --build`
+  # dopo aver impostato WIREGUARD_PRIVATE_KEY nel .env.
+  #
   # Espone un proxy HTTP locale (porta 8888) raggiungibile dal container
   # paramount come http://gluetun:8888. Serve per lo streaming Paramount+ US
   # senza dipendere da proxy esterni (es. Webshare) con limiti di banda.
@@ -23,6 +26,7 @@ services:
   #   1. account.protonvpn.com → Downloads → WireGuard configuration
   #   2. Crea un config per un server USA, scaricalo e copia la "PrivateKey"
   #   3. Metti la chiave in .env come WIREGUARD_PRIVATE_KEY
+  #   4. docker compose --profile vpn up -d --build
   #
   # Se PROXY_URLS nel .env è valorizzato, il container paramount lo usa
   # (lista separata da virgola, round-robin + fallback automatico).
@@ -30,15 +34,25 @@ services:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
     restart: unless-stopped
+    profiles:
+      - vpn
     cap_add:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
+    # Bind-mount di una directory sull'host: l'addon (che ha lo stesso path
+    # bind-mountato) scrive qui il .conf WireGuard, e lo script restart-gluetun.sh
+    # sull'host può fare `docker compose restart gluetun` per applicarlo.
+    volumes:
+      - ./vpn-data/wireguard:/gluetun/wireguard:ro
     environment:
       - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:?Set WIREGUARD_PRIVATE_KEY in .env (ProtonVPN WireGuard key)}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
       - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-United States}
+      # Path del config WireGuard dentro il container gluetun.
+      - WIREGUARD_CONF_FILE=/gluetun/wireguard/proton.conf
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-10.2.0.2/32}
       # Abilita il proxy HTTP locale (ascolta su 8888 di default).
       - HTTP_PROXY=on
       # DNS: usa il DNS di ProtonVPN per evitare leak.
@@ -97,6 +111,10 @@ services:
       # Sessioni Paramount (cookies cifrati JWE) + prefs sportive.
       # Il volume named evita problemi di ownership (l'immagine gira come uid 1000).
       - paramount-data:/app/.data
+      # Bind-mount condiviso con gluetun: l'addon scrive qui il .conf WireGuard
+      # (via UI /configure → /api/vpn/setup). Stesso path sull'host → accessibile
+      # anche da scripts/restart-gluetun.sh.
+      - ./vpn-data:/app/.data/vpn
     # Network esterne a cui il container deve collegarsi.
     # `server-stack_default` è la network di Nginx Proxy Manager (presente se
     # hai installato NPM con docker compose in una cartella `server-stack/`).

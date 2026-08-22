@@ -35,7 +35,27 @@ function parseProxyList(): string[] {
     return out;
 }
 
-const PROXY_URLS: string[] = parseProxyList();
+let PROXY_URLS: string[] = parseProxyList();
+
+/** Sostituisce la lista proxy a runtime e azzera gli stati. Usato da /api/vpn/setup. */
+export function setProxyUrls(urls: string[]): void {
+    PROXY_URLS = urls
+        .map(s => (s || '').trim())
+        .filter(Boolean);
+    // Dedup preservando l'ordine
+    const seen = new Set<string>();
+    PROXY_URLS = PROXY_URLS.filter(u => {
+        if (seen.has(u)) return false;
+        seen.add(u);
+        return true;
+    });
+    proxyStates.clear();
+}
+
+/** Ritorna la lista proxy corrente. */
+export function getProxyUrls(): string[] {
+    return [...PROXY_URLS];
+}
 
 // ── Stato di salute per proxy ─────────────────────────────────────────────
 // Ogni proxy ha uno score (0-100) e uno stato derivato:

@@ -42,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /DATA/
+
+# VPN config (bind-mount sull'host, contiene chiavi WireGuard)
+/vpn-data/
