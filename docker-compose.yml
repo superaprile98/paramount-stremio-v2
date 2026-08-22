@@ -57,11 +57,11 @@ services:
       - HTTP_PROXY=on
       # DNS: usa il DNS di ProtonVPN per evitare leak.
       - DNS_ADDRESS=10.2.0.1
-    ports:
-      # NON esporre il proxy all'esterno: il container paramount lo raggiunge
-      # via rete interna. Se vuoi testarlo dall'host, scommenta:
-      # - "8888:8888"
-      # - "8000:8000/tcp"   # control server (solo debug)
+    # NON esporre il proxy all'esterno: il container paramount lo raggiunge
+    # via rete interna. Se vuoi testarlo dall'host, aggiungi:
+    #   ports:
+    #     - "8888:8888"
+    #     - "8000:8000/tcp"   # control server (solo debug)
     networks:
       - default
     logging:
