@@ -217,13 +217,59 @@ You can configure or set the following environment variables in an `.env` file. 
 | `PORT`       | `7850`                                                       | NO       | The port of the addon.                                                                                               |
 | `KEY_SECRET` | `<random-key>`                                               | YES      | Randomly generated key to encrypt the login session. At least 20 characters recommended.                                 |
 | `TIMEZONE`   | `America/New_York`                                           | NO       | Time zone used to format dates.                                                                                          |
-| `HTTP_PROXY` | `https://<username>:<password>@us8682.<vpn-provider>.com:89` | NO       | HTTP/HTTPS/SOCK5 Proxy, all HTTP calls from addon will be made using this. Currently, only one proxy is supported.       |
+| `PROXY_URLS` | `http://proxy1:8888,http://proxy2:8888`                      | NO       | Comma-separated list of HTTP/HTTPS/SOCKS5 proxies. The addon uses them in **round-robin** and **falls back automatically** when one returns `402` (bandwidth limit) or a connection error. If empty, falls back to `HTTP_PROXY`. |
+| `HTTP_PROXY` | `https://<username>:<password>@us8682.<vpn-provider>.com:89` | NO       | Single HTTP/HTTPS/SOCKS5 proxy (legacy). All HTTP calls from the addon will be made using this. Ignored if `PROXY_URLS` is set. |
+| `WIREGUARD_PRIVATE_KEY` | `<ProtonVPN WireGuard key>`                    | NO       | Private key for the bundled **gluetun** container (ProtonVPN WireGuard tunnel). When set, the addon automatically uses `http://gluetun:8888` as proxy (unless `PROXY_URLS` is set). See [ProtonVPN streaming setup](#-protonvpn-streaming-setup). |
+| `VPN_SERVER_COUNTRIES` | `United States`                                  | NO       | Country of the ProtonVPN server used by the gluetun container (default: `United States`, for Paramount+ US). |
 | `MFP_URL`    | `http://localhost:8888`                                      | NO       | URL of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                                    |
 | `MFP_PASS`   | `<your-password>`                                            | NO       | Password of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                               |
 | `MFP_EXPIRATION` | `3600`                                                  | NO       | TTL (seconds) of the encrypted MediaFlow Proxy URLs generated via `/generate_url`.                                       |
 | `FORCE_HQ`   | `true`                                                       | NO       | When enabled, sorts HLS variants by bandwidth (highest first) in the rewritten master playlist.                          |
 | `STRIP_DISCONTINUITY` | `true`                                          | NO       | Removes `#EXT-X-DISCONTINUITY` tags from media playlists (workaround for players that freeze on commercials).           |
 | `PPLUS_UPSTREAM_ALLOWED_HOSTS` | `<comma-separated>`                     | NO       | Allowlist of upstream hosts the proxy may relay to (SSRF hardening). Defaults to the Paramount+ domains.                 |
+| `PROXY_PROBE_URL` | `https://www.paramountplus.com/`                        | NO       | URL used by the startup probe to test each proxy (default: Paramount+ homepage). Set to empty string to disable.         |
+
+---
+
+## 🌐 Multi-proxy & VPN detection
+
+The addon supports **multiple proxies** (e.g. several ProtonVPN endpoints, a mix of VPN + residential) via `PROXY_URLS` (comma-separated). For each request the client picks a proxy via **round-robin**, skipping any that are currently marked as "dead".
+
+A proxy is marked as unhealthy when:
+
+* It returns **HTTP 402** (bandwidth limit / paywall) → status `throttled`, cooldown 5 min.
+* It returns **403 / 407 / 451** with a body matching `vpn|proxy|unblock|geo-block|not available in your country` → status `blocked`, cooldown 30 min (Paramount+ detected the VPN).
+* Connection error (`ECONNREFUSED`, `ETIMEDOUT`, `ENOTFOUND`, `ERR_BAD_RESPONSE`, …) → status `dead`, cooldown 2 min.
+* A successful response raises the proxy's score; a failure lowers it.
+
+On startup the addon **probes every proxy in parallel** against `PROXY_PROBE_URL` (default: `https://www.paramountplus.com/`) and only uses the ones that pass. It re-probes every 5 minutes so a proxy that recovers is automatically re-enabled.
+
+Inspect the live status:
+
+```bash
+curl https://addon.example.com/api/proxy/status
+# → { "summary": {...}, "proxies": [{ url, status, score, excluded, ... }] }
+
+# Force a fresh probe (e.g. after switching servers):
+curl -X POST -H 'Content-Type: application/json' \
+     -d '{"action":"reprobe"}' https://addon.example.com/api/proxy/status
+```
+
+### 🛡️ ProtonVPN streaming setup (recommended)
+
+Paramount+ US geo-blocks many VPN endpoints. To improve the odds of finding one that works:
+
+1. Subscribe to **ProtonVPN Plus** (gives access to the full server list, not just the free tier).
+2. On `account.protonvpn.com` → **Downloads → WireGuard configuration**, create multiple configs for different **United States** servers (e.g. one in New Jersey, one in Texas, one in California). Copy each `PrivateKey` value.
+3. In `.env` set:
+   ```env
+   WIREGUARD_PRIVATE_KEY=<first-server-key>
+   VPN_SERVER_COUNTRIES=United States
+   ```
+4. `docker compose up -d --build` brings up **gluetun** (ProtonVPN tunnel) plus the addon. The addon will automatically use `http://gluetun:8888` as its proxy.
+5. Open `https://addon.example.com/api/proxy/status` to confirm the proxy is `alive`. If it's `blocked`, edit `.env`, swap `WIREGUARD_PRIVATE_KEY` with a different US server key, then `docker compose restart gluetun` and `curl -X POST .../api/proxy/status -d '{"action":"reprobe"}'`.
+
+For higher reliability, point the addon at **multiple VPN endpoints** with `PROXY_URLS=http://gluetun:8888,http://second-vpn:8888` (e.g. a second `gluetun` container pointing at a different ProtonVPN region).
 
 ---
 
@@ -252,6 +298,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 | `/api/iptv/:key/playlist.m3u` | IPTV M3U playlist for external players |
 | `/api/iptv/:key/epg.xml` | IPTV EPG (XMLTV) for external players |
 | `/api/img` | Image proxy (posters, logos) |
+| `/api/proxy/status` | Multi-proxy health (GET = state, POST `{action:"reprobe"}` = force probe). |
 
 > `:key` is the addon session key (JWE-encrypted session). `:sid` is a short-lived cache id generated by the addon.
 

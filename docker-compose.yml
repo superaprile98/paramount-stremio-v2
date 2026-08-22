@@ -14,6 +14,54 @@
 #   docker compose up -d --build
 
 services:
+  # ── Tunnel VPN ProtonVPN (WireGuard) via gluetun ─────────────────────────
+  # Espone un proxy HTTP locale (porta 8888) raggiungibile dal container
+  # paramount come http://gluetun:8888. Serve per lo streaming Paramount+ US
+  # senza dipendere da proxy esterni (es. Webshare) con limiti di banda.
+  #
+  # Configurazione:
+  #   1. account.protonvpn.com → Downloads → WireGuard configuration
+  #   2. Crea un config per un server USA, scaricalo e copia la "PrivateKey"
+  #   3. Metti la chiave in .env come WIREGUARD_PRIVATE_KEY
+  #
+  # Se PROXY_URLS nel .env è valorizzato, il container paramount lo usa
+  # (lista separata da virgola, round-robin + fallback automatico).
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:?Set WIREGUARD_PRIVATE_KEY in .env (ProtonVPN WireGuard key)}
+      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-United States}
+      # Abilita il proxy HTTP locale (ascolta su 8888 di default).
+      - HTTP_PROXY=on
+      # DNS: usa il DNS di ProtonVPN per evitare leak.
+      - DNS_ADDRESS=10.2.0.1
+    ports:
+      # NON esporre il proxy all'esterno: il container paramount lo raggiunge
+      # via rete interna. Se vuoi testarlo dall'host, scommenta:
+      # - "8888:8888"
+      # - "8000:8000/tcp"   # control server (solo debug)
+    networks:
+      - default
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:8000/v1/health" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
   paramount:
     build:
       context: .
@@ -22,6 +70,9 @@ services:
     container_name: paramount-stremio
     init: true
     restart: unless-stopped
+    depends_on:
+      gluetun:
+        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -31,9 +82,10 @@ services:
       - PORT=${PORT:-7850}
       - KEY_SECRET=${KEY_SECRET:?Set KEY_SECRET in .env (e.g. openssl rand -hex 32)}
       - FORCE_HQ=${FORCE_HQ:-}
-      # Proxy HTTP/HTTPS/SOCKS5 per tutte le chiamate verso Paramount+.
-      # Esempio (Webshare, IP auth — nessuna password): http://31.56.127.193:7684
-      # Nota: con IP auth l'IP pubblico dell'host Docker deve essere nella whitelist.
+      # Proxy per le chiamate verso Paramount+.
+      # - Se PROXY_URLS è valorizzato: lista comma-separated (round-robin + fallback).
+      # - Altrimenti: usa il tunnel ProtonVPN locale via gluetun.
+      - PROXY_URLS=${PROXY_URLS:-http://gluetun:8888}
       - HTTP_PROXY=${HTTP_PROXY:-}
       - MFP_URL=${MFP_URL:-}
       - MFP_PASS=${MFP_PASS:-}
