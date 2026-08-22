@@ -87,6 +87,7 @@ services:
     depends_on:
       gluetun:
         condition: service_healthy
+        required: false
     env_file:
       - .env
     environment:
