@@ -55,12 +55,26 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ key: string
     const { url, error } = decodeUpstreamUrl(req);
     if (error) return error;
 
+    // Il bearer `ls_session` viene propagato dal manifest HLS riscritto
+    // (vedi lib/paramount/proxy/hls.ts#rewriteM3U8, riga EXT-X-KEY).
+    // Senza questo header il license server Irdeto risponde 403 "License denied".
+    let upstreamToken: string | null = null;
+    const tParam = req.nextUrl.searchParams.get("t");
+    if (tParam) {
+        try {
+            upstreamToken = Buffer.from(tParam, "base64url").toString("utf-8");
+        } catch {
+            upstreamToken = null;
+        }
+    }
+
     const headers: Record<string, string> = {
         "Accept": "*/*",
         "User-Agent": await PPLUS_HEADER(),
     };
 
     if (needsParamountAuth(url!.hostname)) {
+        if (upstreamToken) headers["authorization"] = `Bearer ${upstreamToken}`;
         const cookie = buildCookieHeader(session.cookies);
         if (cookie) headers["cookie"] = cookie;
         headers["origin"] = PPLUS_BASE_URL;
