@@ -289,6 +289,13 @@ export default function ConfigurePage() {
         return `stremio://` + manifestUrl;
     }, [manifestUrl]);
 
+    // Link alternativo che apre Stremio via web app (più affidabile del deep link
+    // puro, che alcuni browser bloccano silenziosamente da pagine HTTPS).
+    const stremioWebInstallUrl = useMemo(() => {
+        if (!manifestUrl) return "";
+        return `https://app.strem.io/shell-v4.4?addon=${encodeURIComponent(manifestUrl)}`;
+    }, [manifestUrl]);
+
     function showToast(msg: string) {
         setToast(msg);
         setTimeout(() => setToast(null), 1800);
@@ -629,25 +636,38 @@ export default function ConfigurePage() {
                     <div>
                         <Card
                             title="2 → Install to Stremio"
-                            subtitle="Copy the manifest URL and paste it into Stremio → Addons → Community → Install via URL."
+                            subtitle="One click installs the addon. If the button doesn't open Stremio, use the web app link or copy the URL manually."
                         >
                             <div className="space-y-3">
                                 <TextArea value={manifestUrl || "Login to generate the manifest URL..."} readOnly />
                                 <div className="flex flex-wrap gap-2">
-                                    <Button onClick={onCopyManifest} disabled={!manifestUrl}>
-                                        Copy Manifest URL
-                                    </Button>
-
                                     <a
                                         href={stremioInstallUrl || "#"}
                                         onClick={(e) => !stremioInstallUrl && e.preventDefault()}
-                                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition ${stremioInstallUrl
+                                        className={`inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-sm font-semibold transition ${stremioInstallUrl
+                                            ? "bg-black text-white hover:bg-black/85"
+                                            : "bg-gray-100/60 text-gray-500 cursor-not-allowed"
+                                            }`}
+                                    >
+                                        ⚡ Install in Stremio
+                                    </a>
+
+                                    <a
+                                        href={stremioWebInstallUrl || "#"}
+                                        onClick={(e) => !stremioWebInstallUrl && e.preventDefault()}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition ${stremioWebInstallUrl
                                             ? "bg-gray-100 text-gray-900 hover:bg-gray-200"
                                             : "bg-gray-100/60 text-gray-500 cursor-not-allowed"
                                             }`}
                                     >
-                                        Open in Stremio
+                                        Open in web app
                                     </a>
+
+                                    <Button onClick={onCopyManifest} disabled={!manifestUrl} variant="secondary">
+                                        Copy URL
+                                    </Button>
                                 </div>
                                 {manifestUrl && isLocalManifestUrl(manifestUrl) && !localBannerDismissed && (
                                     <LocalAddressBanner
