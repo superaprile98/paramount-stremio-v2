@@ -143,7 +143,7 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
                 <code className="rounded bg-amber-100 px-1">BASE_URL={baseUrlHint}</code>) and restart the service:
             </p>
             <pre className="mt-2 overflow-x-auto rounded-lg border border-amber-200 bg-white p-2 text-xs text-gray-800">
-{`# Local dev (same PC)
+                {`# Local dev (same PC)
 export BASE_URL=http://localhost:7850
 
 # Production (Oracle Cloud, VPS, ecc.)
@@ -167,6 +167,7 @@ sudo systemctl restart paramount-stremio
 }
 
 export default function ConfigurePage() {
+    const [loginMode, setLoginMode] = useState<"device" | "password">("device");
     const [activationCode, setActivationCode] = useState<string | null>(null);
     const [paramountAuth, setParamountAuth] = useState<ParamountAuthStart | null>(null);
     const [manifestUrl, setManifestUrl] = useState<string | null>(null);
@@ -176,12 +177,30 @@ export default function ConfigurePage() {
     const [toast, setToast] = useState<string | null>(null);
     const [localBannerDismissed, setLocalBannerDismissed] = useState(false);
 
-    async function start() {
+    // Password login state
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [passwordBusy, setPasswordBusy] = useState(false);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+
+    function resetAll() {
         setActivationCode(null);
         setParamountAuth(null);
         setManifestUrl(null);
         setM3uUrl(null);
         setEpgUrl(null);
+        setPasswordError(null);
+    }
+
+    function switchMode(mode: "device" | "password") {
+        if (mode === loginMode) return;
+        setLoginMode(mode);
+        resetAll();
+    }
+
+    async function start() {
+        resetAll();
 
         const r = await fetch("/api/auth/device/start", { method: "POST" });
         const j = await r.json();
@@ -193,6 +212,39 @@ export default function ConfigurePage() {
 
         setActivationCode(j.activationCode);
         setParamountAuth(j);
+    }
+
+    async function passwordLogin() {
+        setPasswordError(null);
+        if (!email.trim() || !password) {
+            setPasswordError("Inserisci email e password");
+            return;
+        }
+        setPasswordBusy(true);
+        try {
+            const r = await fetch("/api/auth/password/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email.trim(), password }),
+            });
+            const j = await r.json().catch(() => ({}));
+            if (r.ok && j?.ok) {
+                setManifestUrl(j.manifestUrl);
+                setM3uUrl(j.m3uUrl ?? null);
+                setEpgUrl(j.epgUrl ?? null);
+                // svuota la password dalla memoria del browser (best effort)
+                setPassword("");
+                showToast("Logged in ✅");
+            } else if (r.status === 429) {
+                setPasswordError(j?.error ?? "Troppi tentativi. Riprova pi\u00f9 tardi.");
+            } else {
+                setPasswordError(j?.error ?? "Login failed");
+            }
+        } catch (e: any) {
+            setPasswordError(e?.message ?? "Network error");
+        } finally {
+            setPasswordBusy(false);
+        }
     }
 
     async function pollOnce(paramountAuth: ParamountAuthStart) {
@@ -437,48 +489,127 @@ export default function ConfigurePage() {
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <Card
                         title="1 → Sign in to Paramount+"
-                        subtitle="Login with device code."
+                        subtitle="Choose how to log in. Both methods run server-side through the configured proxy."
                     >
-                        <div className="space-y-3">
-                            <div className="flex flex-wrap gap-2">
-                                {!activationCode && (
-                                    <Button onClick={start} variant="primary">
-                                        Start login (device code)
-                                    </Button>
-                                )}
+                        <div className="space-y-4">
+                            {/* Tab toggle */}
+                            <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 text-sm">
+                                <button
+                                    onClick={() => switchMode("device")}
+                                    className={`rounded-lg px-3 py-1.5 transition ${loginMode === "device"
+                                        ? "bg-black text-white shadow-sm"
+                                        : "text-gray-700 hover:bg-white"
+                                        }`}
+                                >
+                                    Device code
+                                </button>
+                                <button
+                                    onClick={() => switchMode("password")}
+                                    className={`rounded-lg px-3 py-1.5 transition ${loginMode === "password"
+                                        ? "bg-black text-white shadow-sm"
+                                        : "text-gray-700 hover:bg-white"
+                                        }`}
+                                >
+                                    Email + password
+                                </button>
                             </div>
 
-                            {activationCode && !manifestUrl && (
-                                <div className="mt-5 text-black">
-                                    <p>
-                                        Go <a href="https://www.paramountplus.com/activate/androidtv/" target="_blank"
-                                            rel="noreferrer" className="text-blue-400">
-                                            here
-                                        </a> and insert:
+                            {loginMode === "device" ? (
+                                <div className="space-y-3">
+                                    <div className="flex flex-wrap gap-2">
+                                        {!activationCode && (
+                                            <Button onClick={start} variant="primary">
+                                                Start login (device code)
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {activationCode && !manifestUrl && (
+                                        <div className="mt-3 text-black">
+                                            <p>
+                                                Go <a href="https://www.paramountplus.com/activate/androidtv/" target="_blank"
+                                                    rel="noreferrer" className="text-blue-400">
+                                                    here
+                                                </a> and insert:
+                                            </p>
+                                            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: 6 }}>
+                                                {activationCode}
+                                            </div>
+                                            <p style={{ opacity: 0.8 }}>I am automatically checking every 3 seconds...</p>
+                                            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                                <p className="font-semibold">⚠️ US account required</p>
+                                                <p className="mt-1">
+                                                    This addon works with the <b>US</b> Paramount+ service. If you are outside
+                                                    the US, the activation page will redirect you to your local Paramount+
+                                                    (a separate system) and the code will never be accepted.
+                                                </p>
+                                                <p className="mt-2">
+                                                    The link above is just the standard Paramount+ device-code activation
+                                                    page. The androidtv name in the URL is only their internal convention:
+                                                    the login works on any device (TV, phone, tablet, browser, IPTV player).
+                                                </p>
+                                                <p className="mt-2">
+                                                    If you can't open that page through a US proxy/VPN, switch to the
+                                                    <b> Email + password</b> tab above: the login runs on this server,
+                                                    which already has the US proxy configured.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <p className="text-sm text-gray-600">
+                                        Enter your Paramount+ credentials. They are sent only to this server
+                                        (over HTTPS) and forwarded to Paramount+ through the configured
+                                        <code className="mx-1 rounded bg-gray-100 px-1 font-mono">HTTP_PROXY</code>;
+                                        they are <b>never stored</b>, only the resulting session cookies are kept.
                                     </p>
-                                    <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: 6 }}>
-                                        {activationCode}
+                                    <div className="space-y-2">
+                                        <input
+                                            type="email"
+                                            autoComplete="username"
+                                            placeholder="Email (Paramount+ account)"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            disabled={passwordBusy || !!manifestUrl}
+                                            className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-500 disabled:bg-gray-100"
+                                        />
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                autoComplete="current-password"
+                                                placeholder="Password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
+                                                disabled={passwordBusy || !!manifestUrl}
+                                                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 pr-16 text-sm text-gray-800 outline-none focus:border-blue-500 disabled:bg-gray-100"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword((v) => !v)}
+                                                className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                            >
+                                                {showPassword ? "Hide" : "Show"}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <p style={{ opacity: 0.8 }}>I am automatically checking every 3 seconds...</p>
-                                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                                        <p className="font-semibold">⚠️ US account required</p>
-                                        <p className="mt-1">
-                                            This addon works with the <b>US</b> Paramount+ service. If you are outside
-                                            the US, the activation page will redirect you to your local Paramount+
-                                            (a separate system) and the code will never be accepted.
-                                        </p>
-                                        <p className="mt-2">
-                                            The link above is just the standard Paramount+ device-code activation
-                                            page. The androidtv name in the URL is only their internal convention:
-                                            the login works on any device (TV, phone, tablet, browser, IPTV player).
-                                        </p>
-                                        <p className="mt-2">
-                                            To activate on the US page, open the link above with a browser that uses
-                                            the US proxy <code className="rounded bg-amber-100 px-1">31.56.127.193:7684</code>
-                                            (your IP is already whitelisted), or use a US VPN. The page must show the
-                                            English title <b>Activate Paramount Plus on Android TV</b>.
-                                        </p>
-                                    </div>
+                                    {passwordError && (
+                                        <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                                            {passwordError}
+                                        </div>
+                                    )}
+                                    {!manifestUrl && (
+                                        <Button onClick={passwordLogin} disabled={passwordBusy} variant="primary">
+                                            {passwordBusy ? "Logging in..." : "Log in"}
+                                        </Button>
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                        ⚠️ Too many failed attempts may temporarily block this server's IP on
+                                        Paramount+. If login fails repeatedly, switch back to the <b>Device code</b> tab.
+                                    </p>
                                 </div>
                             )}
 

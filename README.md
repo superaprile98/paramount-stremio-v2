@@ -21,7 +21,7 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 
 ## ✨ Features
 
-- Account login with Device Code (like TV)
+- Account login with **Device Code** (like a TV) or **email + password** (server-side, through the proxy — no browser activation required)
 - Automatically generated catalogs/meta, always up to date (live TV, sports, movies and series)
 - Auto-proxed streams directly from the addon (HLS for live/sports, DASH/MPD proxy for VOD)
 - IPTV playlist (M3U) and EPG export for external players
@@ -60,6 +60,7 @@ Each section is browsable by genre:
 ### Other known issues
 
 - **US-only service**: the addon talks to the **US** Paramount+ API (`www.paramountplus.com`, US `at` token). If you are outside the US, the activation page will geo-redirect you to your local Paramount+ (a separate system with separate accounts) and the device code will never be accepted. To activate, open `https://www.paramountplus.com/activate/androidtv/` from a browser that exits from a US IP (US VPN or the same proxy used by the addon — your IP must be whitelisted). The page must show "Activate Paramount Plus on Android TV" in English.
+- **No browser access to the proxy? Use the password login.** The device-code flow needs the user's own browser to reach `paramountplus.com/activate`, which fails when the upstream proxy only whitelists the server's IP (a common setup with shared rotating proxies like Webshare). To work around this, `/configure` exposes a second tab ("Email + password") that performs the login **server-side**, through the same proxy the addon uses for streams: only the addon container needs to talk to Paramount+, the user only types credentials in the configure page. The request is rate-limited (5 failed attempts / 15 min per IP) to avoid Paramount+ IP bans. Credentials are never stored: they are exchanged for session cookies and sealed into a JWE, exactly like the device-code flow.
 - Some players (such as KSPlayer) may freeze during commercials due to poor support for the m3u #EXT-X-DISCONTINUITY tag (we recommend using libVLC or an external player that supports this tag).
 - If you see an HTTP 403 error during playback, your IP may have been permanently banned (this happens when using a VPN). We recommend changing your DNS server and trying again.
 - The addon login session is valid for one year. If you notice that the addon is no longer working, try logging in again.

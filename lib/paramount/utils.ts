@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { httpClient } from "@/lib/http/client";
 
@@ -6,6 +7,61 @@ export const PPLUS_AT_TOKEN_US = "ABB+XYTJa4Y14QBS5+7jCYvFe04w88I5dxzStu4zlQ4rqT
 export const PPLUS_LOCALE_US = "en-us";
 export const PPLUS_APP_VERSION_FALLBACK = "16.17.0";
 export const PPLUS_IMG_BASE = "https://wwwimage-us.pplusstatic.com/base/";
+
+// Algoritmo `at` token: AES-256-CBC con chiave hardcoded (vedi 3052/rosso),
+// payload = "|" + app_secret. Usato come fallback se il token hardcoded
+// viene ruotato da Paramount+.
+const PPLUS_AT_SECRET_KEY_HEX =
+    "302a6a0d70a7e9b967f91d39fef3e387816e3095925ae4537bce96063311f9c5";
+const PPLUS_AT_APP_SECRET = "7081400bd4143bf3";
+
+/**
+ * Genera un `at` token AES-256-CBC per Paramount+ apps-api.
+ * Formato: [uint16 blockSize=16][16 byte IV=0][ciphertext PKCS7-padded di "|" + app_secret].
+ * Restituisce base64 standard.
+ */
+export function generateAtToken(
+    appSecret: string = PPLUS_AT_APP_SECRET,
+    keyHex: string = PPLUS_AT_SECRET_KEY_HEX
+): string {
+    const key = Buffer.from(keyHex, "hex");
+    const data = Buffer.concat([
+        Buffer.from([0x7c]), // "|"
+        Buffer.from(appSecret, "utf8"),
+    ]);
+
+    // PKCS7 pad fino a 16 byte
+    const blockSize = 16;
+    const padLen = blockSize - (data.length % blockSize);
+    const padded = Buffer.concat([
+        data,
+        Buffer.alloc(padLen, padLen),
+    ]);
+
+    const iv = Buffer.alloc(blockSize, 0);
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    const encrypted = Buffer.concat([
+        cipher.update(padded),
+        cipher.final(),
+    ]);
+
+    // Header: uint16 big-endian blockSize + IV + ciphertext
+    const header = Buffer.alloc(2);
+    header.writeUInt16BE(blockSize, 0);
+
+    return Buffer.concat([header, iv, encrypted]).toString("base64");
+}
+
+/**
+ * Restituisce un `at` token valido: prima prova il token hardcoded (collaudato),
+ * poi quello generato dinamicamente come fallback se la env var PPLUS_AT_OVERRIDE
+ * e' settata (utile in caso di rotazione lato Paramount).
+ */
+export function getAtToken(): string {
+    const override = process.env.PPLUS_AT_OVERRIDE?.trim();
+    if (override) return override;
+    return PPLUS_AT_TOKEN_US;
+}
 
 let PPLUS_HEADER_CACHED: string | undefined;
 let PPLUS_HEADER_LAST_FETCH = 0;

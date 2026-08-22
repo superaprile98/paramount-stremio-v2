@@ -2,9 +2,9 @@ import crypto from "crypto";
 import { seal, unseal } from "@/lib/auth/jwe";
 import {
     PPLUS_BASE_URL,
-    PPLUS_AT_TOKEN_US,
     PPLUS_LOCALE_US,
-    PPLUS_HEADER
+    PPLUS_HEADER,
+    getAtToken,
 } from "@/lib/paramount/utils";
 import { httpClient } from "@/lib/http/client";
 import {
@@ -41,7 +41,7 @@ export class ParamountClient {
     ): Promise<T> {
 
         const url = new URL(`${PPLUS_BASE_URL}/apps-api${apiPath}`);
-        url.searchParams.set("at", PPLUS_AT_TOKEN_US);
+        url.searchParams.set("at", getAtToken());
         url.searchParams.set("locale", PPLUS_LOCALE_US);
 
         if (params) {
@@ -87,7 +87,7 @@ export class ParamountClient {
     ): Promise<{ data: T; cookies: string[] }> {
 
         const url = new URL(`${PPLUS_BASE_URL}/apps-api${apiPath}`);
-        url.searchParams.set("at", PPLUS_AT_TOKEN_US);
+        url.searchParams.set("at", getAtToken());
         url.searchParams.set("locale", PPLUS_LOCALE_US);
 
         const bodyJson = body ? JSON.stringify(body) : "{}";
@@ -218,6 +218,86 @@ export class ParamountClient {
             // completato l'attivazione), ma l'errore non deve essere invisibile.
             console.warn(`[PPLUS] pollDeviceAuth failed: ${err?.message ?? err}`);
             return { ok: false };
+        }
+    }
+
+    /**
+     * Login con username/password via API Paramount+ (apps-api).
+     * L'intera richiesta passa attraverso l'HTTP_PROXY configurato (Webshare/VPN),
+     * quindi funziona correttamente anche quando l'IP del client non e' autorizzato.
+     *
+     * Endpoint: POST /v2.0/androidphone/auth/login.json
+     * Body (form-urlencoded): deviceId=<16hex>&j_username=<email>&j_password=<password>
+     * Risposta: { success: true, userId, ... } + set-cookie CBS_COM (e altri).
+     *
+     * ATTENZIONE: Paramount+ puo' restituire 403/406 (IP ban) se troppi tentativi
+     * falliti nella stessa finestra — lato API route facciamo rate-limit.
+     */
+    async loginWithPassword(
+        email: string,
+        password: string
+    ): Promise<{ ok: boolean; cookies?: string[]; error?: string }> {
+        if (!email || !password) {
+            return { ok: false, error: "Missing credentials" };
+        }
+
+        // deviceId pseudo-random come richiesto dall'endpoint androidphone
+        const deviceId = crypto.randomBytes(32).toString("hex").slice(0, 16);
+
+        const url = new URL(`${PPLUS_BASE_URL}/apps-api/v2.0/androidphone/auth/login.json`);
+        url.searchParams.set("at", getAtToken());
+        url.searchParams.set("locale", PPLUS_LOCALE_US);
+
+        const form = new URLSearchParams({
+            deviceId,
+            j_username: email,
+            j_password: password,
+        }).toString();
+
+        const userAgent = await PPLUS_HEADER();
+
+        try {
+            const { status, data, cookies } = await httpClient.post(
+                url.toString(),
+                form,
+                {
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+                        "Accept": "application/json",
+                        "User-Agent": userAgent,
+                    },
+                    maxRedirects: 0,
+                    // login risponde 4xx in caso di credenziali errate: non dobbiamo
+                    // sollevare eccezione, solo ispezionare lo status.
+                    validateStatus: () => true,
+                }
+            );
+
+            if (status >= 400) {
+                const msg = (data?.message ?? data?.error ?? "").toString().toLowerCase();
+                if (msg.includes("invalid username") || msg.includes("invalid password") || msg.includes("invalid username/password")) {
+                    return { ok: false, error: "Invalid email or password" };
+                }
+                if (status === 403 || status === 406) {
+                    return { ok: false, error: "Troppi tentativi: Paramount+ ha bloccato temporaneamente questo IP. Riprova pi\u00f9 tardi o usa il device-code." };
+                }
+                return { ok: false, error: `Login failed (HTTP ${status})` };
+            }
+
+            const ok = data?.success === true || (typeof data?.userId !== "undefined" && data.userId !== null);
+            if (!ok) {
+                const apiMsg = (data?.message ?? data?.error ?? "").toString();
+                return { ok: false, error: apiMsg || "Login failed: invalid response" };
+            }
+
+            if (!cookies?.length) {
+                return { ok: false, error: "Login succeeded but no session cookies were returned" };
+            }
+
+            return { ok: true, cookies };
+        } catch (err: any) {
+            console.error(`[PPLUS] loginWithPassword failed: ${err?.message ?? err}`);
+            return { ok: false, error: err?.message ?? "Network error" };
         }
     }
 
