@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (mode === 'proton-login') {
+            // Username e password inseriti dall'utente nella UI /configure.
             const username = String(body.username || '').trim();
             const password = String(body.password || '');
             const countryRaw = String(body.country || 'US').trim().toUpperCase();

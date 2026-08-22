@@ -38,19 +38,13 @@
 set -euo pipefail
 
 ADDON_DIR="${ADDON_DIR:-/opt/paramount-stremio}"
-CONF_FILE="${CONF_FILE:-${ADDON_DIR}/.data/vpn/wireguard/proton.conf}"
 
 cd "${ADDON_DIR}"
 
-echo "==> Checking gluetun container (profile vpn)…"
-if ! docker compose --profile vpn ps --services 2>/dev/null | grep -q '^gluetun$'; then
-    echo "❌ Container gluetun non presente. Avvialo con:"
-    echo "   cd ${ADDON_DIR} && docker compose --profile vpn up -d --build gluetun"
-    exit 1
-fi
-
-echo "==> Restarting gluetun…"
-docker compose --profile vpn restart gluetun
+echo "==> Ensuring gluetun container (profile vpn)…"
+# `up -d` crea il container se non esiste ancora e lo ricrea se la config
+# è cambiata. `restart` fallirebbe se il container non è mai stato avviato.
+docker compose --profile vpn up -d gluetun
 
 echo "==> Waiting for tunnel healthcheck (max 60s)…"
 for i in $(seq 1 30); do

@@ -60,7 +60,10 @@ Requires=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=${ADDON_DIR}
-ExecStart=/usr/bin/docker compose --profile vpn restart gluetun
+# `up -d` crea il container se non esiste ancora (profilo vpn) e lo
+# ricrea se la config è cambiata. `restart` fallirebbe se il container
+# non è mai stato avviato.
+ExecStart=/usr/bin/docker compose --profile vpn up -d gluetun
 ExecStartPost=/usr/bin/bash ${ADDON_DIR}/scripts/restart-gluetun.sh
 StandardOutput=journal
 StandardError=journal

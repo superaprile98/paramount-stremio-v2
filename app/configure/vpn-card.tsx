@@ -133,7 +133,7 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
 
     async function submitLogin() {
         if (!username.trim() || !password) {
-            onToast("❌ Inserisci username e password Proton (OpenVPN/IKEv2)");
+            onToast("❌ Inserisci username e password Proton");
             return;
         }
         setLoading(true);
@@ -301,32 +301,27 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
             <div className="space-y-3">
                 {tab === "login" && (
                     <>
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
-                            <strong>Dove trovare le credenziali:</strong>{" "}
-                            <a className="text-blue-600 underline" href="https://account.protonvpn.com/account-password" target="_blank" rel="noreferrer">
-                                account.protonvpn.com
-                            </a>{" "}
-                            → <em>Account</em> → <em>OpenVPN/IKEv2 username</em> e <em>OpenVPN/IKEv2 password</em>.
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                            Inserisci le credenziali del tuo account Proton (username e password).
                             <br />
-                            Sono credenziali dedicate (es. utente <code className="rounded bg-white px-1 font-mono">nomeutente+pmp</code>) e{" "}
-                            <strong>non</strong> la password dell&apos;account Proton.
+                            Se Proton le rifiuta, ti mostriamo subito cosa serve.
                         </div>
 
-                        <label className="block text-xs font-semibold text-gray-700">Username OpenVPN/IKEv2</label>
+                        <label className="block text-xs font-semibold text-gray-700">Username</label>
                         <input
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="es. nomeutente+pmp"
+                            placeholder="il tuo username Proton"
                             autoComplete="off"
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs"
                         />
 
-                        <label className="block text-xs font-semibold text-gray-700">Password OpenVPN/IKEv2</label>
+                        <label className="block text-xs font-semibold text-gray-700">Password</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="password dedicata OpenVPN"
+                            placeholder="la tua password Proton"
                             autoComplete="new-password"
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs"
                         />
