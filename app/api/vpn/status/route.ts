@@ -15,7 +15,14 @@ export async function GET() {
         const [proxies, current, creds] = await Promise.all([
             Promise.resolve(httpClient.getProxyStatus()),
             readCurrentConfig(),
-            loadCreds<{ mode: string; serverCode?: string; proxyUrl?: string; updatedAt?: string }>(),
+            loadCreds<{
+                mode: string;
+                username?: string;
+                country?: string;
+                serverCode?: string;
+                proxyUrl?: string;
+                updatedAt?: string;
+            }>(),
         ]);
         const summary = {
             count: proxies.length,
@@ -32,6 +39,10 @@ export async function GET() {
         }));
         const maskedCreds = creds ? {
             mode: creds.mode,
+            username: creds.username
+                ? (creds.username.length > 4 ? creds.username.slice(0, 2) + '…' + creds.username.slice(-2) : '***')
+                : undefined,
+            country: creds.country,
             serverCode: creds.serverCode,
             proxyUrl: creds.proxyUrl ? creds.proxyUrl.replace(/:[^:@/]+@/, ':***@') : undefined,
             updatedAt: creds.updatedAt,

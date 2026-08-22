@@ -14,14 +14,7 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
     );
 }
 
-type ProtonServer = {
-    country: string;
-    city: string;
-    code: string;
-    endpoint: string;
-    publicKey: string;
-    port?: number;
-};
+type Country = { code: string; label: string };
 
 type ProbeResult = {
     ok: boolean;
@@ -57,23 +50,25 @@ type VpnStatus = {
         lastCheckedAt: number;
     }>;
     config: {
-        kind: "wireguard" | "proxy" | "none";
-        wireguard?: {
-            path: string;
-            server?: ProtonServer;
-            privateKeyMasked: string;
+        kind: "proton-login" | "proxy" | "none";
+        login?: {
+            usernameMasked: string;
+            country: string;
+            envPath: string;
+            updatedAt: string;
         };
         proxy?: { url: string };
     };
     savedCreds: null | {
         mode: string;
-        serverCode?: string;
+        username?: string;
+        country?: string;
         proxyUrl?: string;
         updatedAt?: string;
     };
 };
 
-type Tab = "conf" | "key" | "proxy";
+type Tab = "login" | "proxy";
 
 function maskUrl(url: string): string {
     return url.replace(/:[^:@/]+@/, ":***@");
@@ -95,17 +90,18 @@ function statusBadge(status: string): string {
 }
 
 export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
-    const [tab, setTab] = useState<Tab>("conf");
+    const [tab, setTab] = useState<Tab>("login");
     const [status, setStatus] = useState<VpnStatus | null>(null);
-    const [servers, setServers] = useState<ProtonServer[]>([]);
+    const [countries, setCountries] = useState<Country[]>([{ code: "US", label: "United States (default per Paramount+)" }]);
     const [loading, setLoading] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
-    // Form state
-    const [confText, setConfText] = useState("");
-    const [privateKey, setPrivateKey] = useState("");
-    const [serverCode, setServerCode] = useState("");
+    // Login form state
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [country, setCountry] = useState("US");
+    // Proxy form state
     const [proxyUrl, setProxyUrl] = useState("");
 
     async function refreshStatus() {
@@ -118,13 +114,12 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
         }
     }
 
-    async function loadServers() {
+    async function loadCountries() {
         try {
             const r = await fetch("/api/vpn/servers");
             const j = await r.json();
-            if (j.ok && Array.isArray(j.servers)) {
-                setServers(j.servers);
-                if (!serverCode && j.servers[0]) setServerCode(j.servers[0].code);
+            if (j.ok && Array.isArray(j.countries) && j.countries.length > 0) {
+                setCountries(j.countries.map((c: any) => ({ code: c.code, label: c.label })));
             }
         } catch {
             /* ignore */
@@ -133,24 +128,53 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
 
     useEffect(() => {
         refreshStatus();
-        loadServers();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        loadCountries();
     }, []);
 
-    async function submit() {
+    async function submitLogin() {
+        if (!username.trim() || !password) {
+            onToast("❌ Inserisci username e password Proton (OpenVPN/IKEv2)");
+            return;
+        }
         setLoading(true);
         try {
-            const body: any = { mode: tab };
-            if (tab === "conf") body.confText = confText;
-            if (tab === "key") {
-                body.privateKey = privateKey;
-                body.serverCode = serverCode;
-            }
-            if (tab === "proxy") body.url = proxyUrl;
             const r = await fetch("/api/vpn/setup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    mode: "proton-login",
+                    username: username.trim(),
+                    password,
+                    country,
+                }),
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) {
+                onToast(`❌ ${j.error || "Errore"}`);
+                return;
+            }
+            onToast(`✅ ${j.message}`);
+            setPassword(""); // sicurezza: non tenere la password in memoria UI
+            await refreshStatus();
+        } catch (e: any) {
+            onToast(`❌ ${e?.message || String(e)}`);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function submitProxy() {
+        const url = proxyUrl.trim();
+        if (!url || !/^https?:\/\//i.test(url)) {
+            onToast("❌ URL proxy non valido (deve iniziare con http:// o https://)");
+            return;
+        }
+        setLoading(true);
+        try {
+            const r = await fetch("/api/vpn/setup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "proxy", url }),
             });
             const j = await r.json();
             if (!r.ok || !j.ok) {
@@ -200,6 +224,9 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
                 return;
             }
             onToast(`✅ ${j.message}`);
+            setUsername("");
+            setPassword("");
+            setProxyUrl("");
             await refreshStatus();
         } finally {
             setLoading(false);
@@ -222,19 +249,19 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
     return (
         <Card
             title="🌐 VPN / Proxy (optional)"
-            subtitle="Configure ProtonVPN (gluetun tunnel) or an external HTTP proxy for streaming from outside the US."
+            subtitle="Connetti Paramount+ US via tunnel ProtonVPN (login) oppure un proxy HTTP esterno."
         >
             {/* Current status */}
             <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-gray-800">Stato corrente:</span>
-                    {status?.config?.kind === "wireguard" ? (
+                    {status?.config?.kind === "proton-login" ? (
                         <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                            🛡️ WireGuard → {status.config.wireguard?.server?.code || "custom"} ({status.config.wireguard?.server?.city || "?"})
+                            🛡️ Proton tunnel → utente {status.config.login?.usernameMasked || "?"}, {status.config.login?.country || "US"}
                         </span>
                     ) : status?.config?.kind === "proxy" ? (
                         <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800">
-                            🔌 Proxy → {maskUrl(status.config.proxy?.url || "")}
+                            🔌 Proxy → {maskUrl(status?.config?.proxy?.url || "")}
                         </span>
                     ) : (
                         <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
@@ -266,58 +293,69 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
 
             {/* Tabs */}
             <div className="mb-3 flex gap-2">
-                {tabBtn("conf", "📄 WireGuard .conf")}
-                {tabBtn("key", "🔑 Private key + server")}
-                {tabBtn("proxy", "🔌 HTTP proxy URL")}
+                {tabBtn("login", "🔐 Login Proton")}
+                {tabBtn("proxy", "🔌 HTTP proxy")}
             </div>
 
             {/* Tab content */}
             <div className="space-y-3">
-                {tab === "conf" && (
+                {tab === "login" && (
                     <>
-                        <p className="text-xs text-gray-600">
-                            Incolla il contenuto del file <code className="rounded bg-gray-100 px-1">.conf</code> scaricato da{" "}
-                            <a className="text-blue-600 underline" href="https://account.protonvpn.com/downloads" target="_blank" rel="noreferrer">
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                            <strong>Dove trovare le credenziali:</strong>{" "}
+                            <a className="text-blue-600 underline" href="https://account.protonvpn.com/account-password" target="_blank" rel="noreferrer">
                                 account.protonvpn.com
                             </a>{" "}
-                            (Downloads → WireGuard configuration).
-                        </p>
-                        <textarea
-                            value={confText}
-                            onChange={(e) => setConfText(e.target.value)}
-                            placeholder="[Interface]&#10;PrivateKey = ...&#10;Address = 10.2.0.2/32&#10;DNS = 10.2.0.1&#10;&#10;[Peer]&#10;PublicKey = ...&#10;Endpoint = 185.159.157.10:51820&#10;..."
-                            rows={8}
-                            className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs text-gray-800 focus:border-blue-500 focus:outline-none"
-                        />
-                    </>
-                )}
+                            → <em>Account</em> → <em>OpenVPN/IKEv2 username</em> e <em>OpenVPN/IKEv2 password</em>.
+                            <br />
+                            Sono credenziali dedicate (es. utente <code className="rounded bg-white px-1 font-mono">nomeutente+pmp</code>) e{" "}
+                            <strong>non</strong> la password dell&apos;account Proton.
+                        </div>
 
-                {tab === "key" && (
-                    <>
-                        <p className="text-xs text-gray-600">
-                            Incolla solo la <strong>PrivateKey</strong> dal config Proton e scegli un server USA dal menu.
-                        </p>
-                        <label className="block text-xs font-semibold text-gray-700">Private key</label>
+                        <label className="block text-xs font-semibold text-gray-700">Username OpenVPN/IKEv2</label>
                         <input
-                            type="password"
-                            value={privateKey}
-                            onChange={(e) => setPrivateKey(e.target.value)}
-                            placeholder="e.g. gI6EdUSYvn8ugXOt8qqD6M7ayx0w8vTZbF4MhGMrJGA="
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="es. nomeutente+pmp"
+                            autoComplete="off"
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs"
                         />
-                        <label className="block text-xs font-semibold text-gray-700">Server</label>
+
+                        <label className="block text-xs font-semibold text-gray-700">Password OpenVPN/IKEv2</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="password dedicata OpenVPN"
+                            autoComplete="new-password"
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs"
+                        />
+
+                        <label className="block text-xs font-semibold text-gray-700">Paese server</label>
                         <select
-                            value={serverCode}
-                            onChange={(e) => setServerCode(e.target.value)}
+                            value={country}
+                            onChange={(e) => setCountry(e.target.value)}
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm"
                         >
-                            {servers.length === 0 && <option value="">(loading…)</option>}
-                            {servers.map((s) => (
-                                <option key={s.code} value={s.code}>
-                                    {s.code} — {s.city}, {s.country}
+                            {countries.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                    {c.label}
                                 </option>
                             ))}
                         </select>
+
+                        <button
+                            onClick={submitLogin}
+                            disabled={loading}
+                            className="w-full rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/85 disabled:opacity-50"
+                        >
+                            {loading ? "Salvataggio…" : "Save & apply (Proton tunnel)"}
+                        </button>
+
+                        <p className="text-[11px] text-gray-500">
+                            Le creds vengono salvate cifrate (AES-256-GCM via KEY_SECRET) in <code className="font-mono">vpn-data/gluetun.env</code>,
+                            montato come <code className="font-mono">env_file</code> sul container gluetun.
+                        </p>
                     </>
                 )}
 
@@ -333,19 +371,19 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
                             placeholder="http://user:pass@proxy.example.com:8080"
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 font-mono text-xs"
                         />
+                        <button
+                            onClick={submitProxy}
+                            disabled={loading}
+                            className="w-full rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/85 disabled:opacity-50"
+                        >
+                            {loading ? "Salvataggio…" : "Save & apply (HTTP proxy)"}
+                        </button>
                     </>
                 )}
             </div>
 
-            {/* Action buttons */}
+            {/* Test + Reset buttons */}
             <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                    onClick={submit}
-                    disabled={loading}
-                    className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/85 disabled:opacity-50"
-                >
-                    {loading ? "Salvataggio…" : "Save & apply"}
-                </button>
                 <button
                     onClick={runTest}
                     disabled={testing}
@@ -396,9 +434,9 @@ export function VpnSetupCard({ onToast }: { onToast: (msg: string) => void }) {
                 </div>
             )}
 
-            <p className="mt-4 text-xs text-gray-500">
-                💡 Dopo aver salvato, sul host esegui:{" "}
-                <code className="rounded bg-gray-100 px-1 font-mono">bash scripts/restart-gluetun.sh</code> per applicare la nuova config al tunnel.
+            <p className="mt-4 text-[11px] text-gray-500">
+                💡 Dopo il primo save, se non hai ancora installato il watcher systemd, esegui una volta sull&apos;host:{" "}
+                <code className="rounded bg-gray-100 px-1 font-mono">bash scripts/install-gluetun-watcher.sh</code> per il restart automatico ad ogni cambio credenziali.
             </p>
         </Card>
     );

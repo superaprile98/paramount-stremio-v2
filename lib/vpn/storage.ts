@@ -74,6 +74,11 @@ export async function credsExist(): Promise<boolean> {
 export const VPN_DATA_PATHS = {
     dir: VPN_DIR,
     credsFile: CREDS_FILE,
+    // Legacy: usato dalla vecchia modalità WireGuard (mantenuto per non rompere
+    // readCurrentConfig() su installazioni già esistenti).
     wireguardConf: path.join(VPN_DIR, 'wireguard', 'proton.conf'),
+    // File env che docker-compose monta come env_file su gluetun (OpenVPN).
+    // Contiene OPENVPN_USER, OPENVPN_PASSWORD, VPN_SERVER_COUNTRIES.
+    // Permessi 0o600 e volume read-only sul container gluetun.
     gluetunEnv: path.join(VPN_DIR, 'gluetun.env'),
 };

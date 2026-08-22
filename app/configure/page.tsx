@@ -137,7 +137,7 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
             </div>
             <p className="mt-1">
                 The manifest URL points to <code className="rounded bg-amber-100 px-1 font-mono">{manifestUrl}</code>.
-                Stremio on other devices can't reach <code className="rounded bg-amber-100 px-1">{hostHint}</code>.
+                Stremio on other devices can&apos;t reach <code className="rounded bg-amber-100 px-1">{hostHint}</code>.
             </p>
             <p className="mt-2">
                 To get a public URL, set <code className="rounded bg-amber-100 px-1">BASE_URL</code> on the server (e.g.{" "}
@@ -557,7 +557,7 @@ export default function ConfigurePage() {
                                                     the login works on any device (TV, phone, tablet, browser, IPTV player).
                                                 </p>
                                                 <p className="mt-2">
-                                                    If you can't open that page through a US proxy/VPN, switch to the
+                                                    If you can&apos;t open that page through a US proxy/VPN, switch to the
                                                     <b> Email + password</b> tab above: the login runs on this server,
                                                     which already has the US proxy configured.
                                                 </p>
@@ -615,7 +615,7 @@ export default function ConfigurePage() {
                                         </Button>
                                     )}
                                     <p className="text-xs text-gray-500">
-                                        ⚠️ Too many failed attempts may temporarily block this server's IP on
+                                        ⚠️ Too many failed attempts may temporarily block this server&apos;s IP on
                                         Paramount+. If login fails repeatedly, switch back to the <b>Device code</b> tab.
                                     </p>
                                 </div>

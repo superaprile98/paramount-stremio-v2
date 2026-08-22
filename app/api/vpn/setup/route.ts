@@ -1,31 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setProxyUrls, getProxyUrls } from '@/lib/http/client';
 import {
-    buildVpnConfigFromText,
-    buildVpnConfigFromKey,
-    writeWireguardConfig,
+    writeProtonLoginEnv,
     clearConfig,
+    PROTON_COUNTRIES,
 } from '@/lib/vpn/gluetun';
 import { saveCreds } from '@/lib/vpn/storage';
 
 /**
  * POST /api/vpn/setup
  *
- * Body: uno dei tre formati:
- *   { mode: 'wireguard-conf', confText: string, serverCode?: string }
- *   { mode: 'wireguard-key',  privateKey: string, serverCode: string }
- *   { mode: 'proxy',          url: string }
- *   { mode: 'clear' }   → rimuove VPN e torna a PROXY_URLS default
+ * Body: uno dei formati:
+ *   { mode: 'proton-login', username: string, password: string, country?: string }
+ *       → scrive env_file OpenVPN per gluetun e imposta PROXY_URLS = http://gluetun:8888
+ *   { mode: 'proxy', url: string }
+ *       → imposta un proxy HTTP esterno (no VPN tunnel)
+ *   { mode: 'clear' }
+ *       → rimuove la config VPN/proxy e resetta ai default
  *
  * Effetti:
- *   - Scrive il config WireGuard (se mode è wireguard-*) sul volume.
+ *   - Scrive `vpn-data/gluetun.env` (se mode = proton-login) con creds OpenVPN
+ *     Proton. Il file viene montato come env_file sul container gluetun.
  *   - Aggiorna process.env.PROXY_URLS con il proxy di gluetun (o il proxy
  *     HTTP esterno) e ricostruisce lo stato del round-robin.
- *   - Salva le creds cifrate (per idempotenza e per il restart dell'addon).
+ *   - Salva le creds cifrate (AES-256-GCM via KEY_SECRET) per idempotenza.
  *
- * NOTA: il restart del container gluetun NON è fatto qui. Viene triggerato
- * dallo script `scripts/restart-gluetun.sh` sull'host che osserva la
- * modifica del file .conf (via inotify o un cron @reboot + al boot).
+ * Auto-restart di gluetun: il file env è bind-mountato sull'host in
+ * `vpn-data/gluetun.env`. Una systemd path unit (installata con
+ * `scripts/install-gluetun-watcher.sh`) osserva quel file e riavvia
+ * automaticamente gluetun ad ogni cambio. Niente SSH richiesto.
  */
 export async function POST(req: NextRequest) {
     let body: any;
@@ -42,81 +45,55 @@ export async function POST(req: NextRequest) {
     try {
         if (mode === 'clear') {
             await clearConfig();
-            // Reset PROXY_URLS a "http://gluetun:8888" (default fallback) — l'utente
-            // può poi settare esplicitamente un altro proxy via /api/vpn/setup.
             const defaults = process.env.HTTP_PROXY || 'http://gluetun:8888';
             setProxyUrls([defaults]);
             await saveCreds({ mode: 'none', updatedAt: new Date().toISOString() });
             return NextResponse.json({
                 ok: true,
-                message: 'VPN config rimossa. PROXY_URLS resettato al default.',
+                message: 'VPN/proxy config rimossa. PROXY_URLS resettato al default.',
                 proxyUrls: getProxyUrls(),
             });
         }
 
-        if (mode === 'wireguard-conf') {
-            const confText = String(body.confText || '').trim();
-            const serverCode = body.serverCode ? String(body.serverCode) : undefined;
-            if (!confText) {
-                return NextResponse.json({ ok: false, error: 'confText required' }, { status: 400 });
-            }
-            const vpn = buildVpnConfigFromText(confText, serverCode);
-            const paths = await writeWireguardConfig(vpn);
-            // Aggiorna proxy runtime → usa il tunnel gluetun.
-            const proxyUrl = 'http://gluetun:8888';
-            setProxyUrls([proxyUrl]);
-            await saveCreds({
-                mode: 'wireguard',
-                serverCode: vpn.server.code,
-                privateKey: vpn.privateKey,
-                address: vpn.address,
-                updatedAt: new Date().toISOString(),
-            });
-            return NextResponse.json({
-                ok: true,
-                message: `Config WireGuard scritto per ${vpn.server.code}. Gluetun verrà riavviato automaticamente.`,
-                config: {
-                    kind: 'wireguard',
-                    server: vpn.server,
-                    privateKeyMasked: vpn.privateKey.slice(0, 4) + '…' + vpn.privateKey.slice(-4),
-                    paths,
-                },
-                proxyUrls: getProxyUrls(),
-                note: 'Esegui sul host: bash scripts/restart-gluetun.sh (oppure riavvia il container con --profile vpn)',
-            });
-        }
-
-        if (mode === 'wireguard-key') {
-            const privateKey = String(body.privateKey || '').trim();
-            const serverCode = String(body.serverCode || '').trim();
-            if (!privateKey || !serverCode) {
+        if (mode === 'proton-login') {
+            const username = String(body.username || '').trim();
+            const password = String(body.password || '');
+            const countryRaw = String(body.country || 'US').trim().toUpperCase();
+            if (!username || !password) {
                 return NextResponse.json(
-                    { ok: false, error: 'privateKey and serverCode required' },
+                    { ok: false, error: 'username e password sono obbligatori' },
                     { status: 400 },
                 );
             }
-            const vpn = buildVpnConfigFromKey(privateKey, serverCode);
-            const paths = await writeWireguardConfig(vpn);
-            const proxyUrl = 'http://gluetun:8888';
-            setProxyUrls([proxyUrl]);
-            await saveCreds({
-                mode: 'wireguard',
-                serverCode: vpn.server.code,
-                privateKey: vpn.privateKey,
-                address: vpn.address,
+            // Validazione country code contro la lista supportata da gluetun.
+            const country = PROTON_COUNTRIES.find(c => c.code === countryRaw)?.code || 'US';
+            const paths = await writeProtonLoginEnv({
+                kind: 'proton-login',
+                username,
+                password,
+                country,
                 updatedAt: new Date().toISOString(),
             });
+            // Attiva il tunnel gluetun come proxy di uscita.
+            setProxyUrls(['http://gluetun:8888']);
+            await saveCreds({
+                mode: 'proton-login',
+                username,
+                country,
+                updatedAt: new Date().toISOString(),
+            });
+            const maskedUser = username.length > 4 ? username.slice(0, 2) + '…' + username.slice(-2) : '***';
             return NextResponse.json({
                 ok: true,
-                message: `Config WireGuard generato per ${vpn.server.code}.`,
+                message: `Credenziali Proton salvate (utente ${maskedUser}, paese ${country}). Gluetun si riavvierà automaticamente entro ~5s.`,
                 config: {
-                    kind: 'wireguard',
-                    server: vpn.server,
-                    privateKeyMasked: vpn.privateKey.slice(0, 4) + '…' + vpn.privateKey.slice(-4),
+                    kind: 'proton-login',
+                    usernameMasked: maskedUser,
+                    country,
                     paths,
                 },
                 proxyUrls: getProxyUrls(),
-                note: 'Esegui sul host: bash scripts/restart-gluetun.sh',
+                countries: PROTON_COUNTRIES,
             });
         }
 
@@ -128,7 +105,7 @@ export async function POST(req: NextRequest) {
                     { status: 400 },
                 );
             }
-            // Rimuovi eventuale config WireGuard (vogliamo "solo proxy esterno").
+            // Rimuovi eventuale config VPN (vogliamo "solo proxy esterno").
             await clearConfig();
             setProxyUrls([url]);
             await saveCreds({
@@ -144,7 +121,7 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json(
-            { ok: false, error: `Unknown mode "${mode}". Expected: wireguard-conf | wireguard-key | proxy | clear` },
+            { ok: false, error: `Unknown mode "${mode}". Expected: proton-login | proxy | clear` },
             { status: 400 },
         );
     } catch (err: any) {
@@ -156,11 +133,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-    // GET ritorna la modalità corrente e la lista proxy attiva.
     return NextResponse.json({
         ok: true,
         proxyUrls: getProxyUrls(),
         envProxyUrls: process.env.PROXY_URLS || '',
         envHttpProxy: process.env.HTTP_PROXY || '',
+        countries: PROTON_COUNTRIES,
     });
 }

@@ -14,22 +14,20 @@
 #   docker compose up -d --build
 
 services:
-  # ── Tunnel VPN ProtonVPN (WireGuard) via gluetun ─────────────────────────
-  # OPZIONALE: si attiva con `docker compose --profile vpn up -d --build`
-  # dopo aver impostato WIREGUARD_PRIVATE_KEY nel .env.
+  # ── Tunnel VPN ProtonVPN (OpenVPN login) via gluetun ─────────────────────
+  # OPZIONALE: si attiva con `docker compose --profile vpn up -d --build`.
+  #
+  # Autenticazione con credenziali OpenVPN/IKEv2 di Proton (NON la password
+  # dell'account Proton). Si prendono da:
+  #   account.protonvpn.com → Account → OpenVPN/IKEv2 credentials
+  # (es. username "utente+pmp" con password dedicata).
+  #
+  # Le credenziali vengono scritte dall'addon in vpn-data/gluetun.env
+  # (via UI /configure → /api/vpn/setup) e montate come env_file qui sotto.
+  # NON servono chiavi WireGuard né SSH: la UI fa tutto.
   #
   # Espone un proxy HTTP locale (porta 8888) raggiungibile dal container
-  # paramount come http://gluetun:8888. Serve per lo streaming Paramount+ US
-  # senza dipendere da proxy esterni (es. Webshare) con limiti di banda.
-  #
-  # Configurazione:
-  #   1. account.protonvpn.com → Downloads → WireGuard configuration
-  #   2. Crea un config per un server USA, scaricalo e copia la "PrivateKey"
-  #   3. Metti la chiave in .env come WIREGUARD_PRIVATE_KEY
-  #   4. docker compose --profile vpn up -d --build
-  #
-  # Se PROXY_URLS nel .env è valorizzato, il container paramount lo usa
-  # (lista separata da virgola, round-robin + fallback automatico).
+  # paramount come http://gluetun:8888.
   gluetun:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
@@ -40,22 +38,20 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    # Bind-mount di una directory sull'host: l'addon (che ha lo stesso path
-    # bind-mountato) scrive qui il .conf WireGuard, e lo script restart-gluetun.sh
-    # sull'host può fare `docker compose restart gluetun` per applicarlo.
+    # env_file scritto dall'addon (UI /configure). Contiene OPENVPN_USER,
+    # OPENVPN_PASSWORD, SERVER_COUNTRIES. Stesso path sull'host → la systemd
+    # path unit (scripts/install-gluetun-watcher.sh) osserva le modifiche e
+    # riavvia gluetun automaticamente, niente SSH.
     volumes:
-      - ./vpn-data/wireguard:/gluetun/wireguard:ro
+      - ./vpn-data/gluetun.env:/gluetun/gluetun.env:ro
+    env_file:
+      - /gluetun/gluetun.env
     environment:
       - VPN_SERVICE_PROVIDER=protonvpn
-      - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
-      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-United States}
-      # Path del config WireGuard dentro il container gluetun.
-      - WIREGUARD_CONF_FILE=/gluetun/wireguard/proton.conf
-      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-10.2.0.2/32}
+      - VPN_TYPE=openvpn
       # Abilita il proxy HTTP locale (ascolta su 8888 di default).
       - HTTP_PROXY=on
-      # DNS: usa il DNS di ProtonVPN per evitare leak.
+      # DNS: usa i DNS di ProtonVPN per evitare leak.
       - DNS_ADDRESS=10.2.0.1
     # NON esporre il proxy all'esterno: il container paramount lo raggiunge
     # via rete interna. Se vuoi testarlo dall'host, aggiungi:

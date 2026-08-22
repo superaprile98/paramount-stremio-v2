@@ -257,35 +257,32 @@ curl -X POST -H 'Content-Type: application/json' \
 
 ### 🛡️ ProtonVPN streaming setup (recommended)
 
-Paramount+ US geo-blocks many VPN endpoints. To improve the odds of finding one that works:
+Paramount+ US geo-blocks many VPN endpoints. The addon ships with an **OpenVPN** integration for `gluetun` that works with the credentials you already have on your ProtonVPN account — no WireGuard keys or `.conf` files to manage.
 
 1. Subscribe to **ProtonVPN Plus** (gives access to the full server list, not just the free tier).
-2. On `account.protonvpn.com` → **Downloads → WireGuard configuration**, create multiple configs for different **United States** servers (e.g. one in New Jersey, one in Texas, one in California). Copy each `PrivateKey` value.
-3. In `.env` set:
-   ```env
-   WIREGUARD_PRIVATE_KEY=<first-server-key>
-   VPN_SERVER_COUNTRIES=United States
-   ```
-4. `docker compose up -d --build` brings up **gluetun** (ProtonVPN tunnel) plus the addon. The addon will automatically use `http://gluetun:8888` as its proxy.
-5. Open `https://addon.example.com/api/proxy/status` to confirm the proxy is `alive`. If it's `blocked`, edit `.env`, swap `WIREGUARD_PRIVATE_KEY` with a different US server key, then `docker compose restart gluetun` and `curl -X POST .../api/proxy/status -d '{"action":"reprobe"}'`.
+2. Open `https://account.protonvpn.com/account-password` (or the **Account** page on the Proton web app) and scroll to **OpenVPN / IKEv2 username** and **OpenVPN / IKEv2 password**. These are **separate** from your Proton account password — Proton generates them for legacy OpenVPN clients. The username is typically your Proton username with the `+pmp` suffix (e.g. `yourname+pmp`).
+3. Open the addon UI at `https://addon.example.com/configure` and go to the **🌐 VPN / Proxy** card → **🔐 Login Proton** tab.
+4. Paste the username and password, pick a country (start with **United States**), and click **Save**. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file and immediately reconfigures `gluetun`.
+5. Click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the tunnel and see the exit IP, country, city, and ISP. The result is one of: **✅ OK** / **⚠️ VPN detected** / **🌍 Geo-blocked (HTTP 451)** / **❌ Connection failed**.
+
+If the test reports **VPN detected** or **Geo-blocked**, switch to a different country from the dropdown (Netherlands, Switzerland, Sweden, Iceland, Romania) and retry — ProtonVPN rotates exit IPs frequently.
 
 For higher reliability, point the addon at **multiple VPN endpoints** with `PROXY_URLS=http://gluetun:8888,http://second-vpn:8888` (e.g. a second `gluetun` container pointing at a different ProtonVPN region).
 
 ### 🖱️ One-click VPN setup from `/configure`
 
-If you don't want to SSH into the server every time, the configure UI exposes a card **🌐 VPN / Proxy** that lets you configure the tunnel without editing files. The setup writes the WireGuard config to a bind-mounted directory and the addon immediately switches to it. Three modes:
+If you don't want to SSH into the server every time, the configure UI exposes a card **🌐 VPN / Proxy** that lets you configure the tunnel without editing files. Two modes:
 
-1. **📄 WireGuard .conf** — paste the full `.conf` text from `account.protonvpn.com` (Downloads → WireGuard). The addon parses it, extracts the server info and the private key, then writes a sanitized version to the shared volume.
-2. **🔑 Private key + server** — paste only the `PrivateKey` and pick a server (e.g. `US-NJ#153`) from a dropdown of known ProtonVPN endpoints. The addon builds the `.conf` for you.
-3. **🔌 HTTP proxy URL** — paste any HTTP/HTTPS/SOCKS5 proxy URL (with optional `user:pass@` credentials) without using a VPN tunnel at all.
+1. **🔐 Login Proton** — paste your ProtonVPN **OpenVPN/IKEv2 username** and **password** (from `account.protonvpn.com` → Account) and pick a country. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file consumed by `gluetun` (see `docker-compose.yml`). This is the simplest way and works with any ProtonVPN plan.
+2. **🔌 HTTP proxy URL** — paste any HTTP/HTTPS/SOCKS5 proxy URL (with optional `user:pass@` credentials) without using a VPN tunnel at all.
 
 After saving, click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the new tunnel and see the exit IP, country, city, and ISP. The result is "✅ OK" / "⚠️ VPN detected" / "🌍 Geo-blocked (HTTP 451)" / "❌ Connection failed".
 
-> **Note**: after saving, run on the host:
+> **One-time SSH setup** (30 s): to make the new config take effect automatically without SSH every time, run once on the host:
 > ```bash
-> sudo bash scripts/restart-gluetun.sh
+> sudo bash scripts/install-gluetun-watcher.sh
 > ```
-> to apply the new config to the running `gluetun` container. (Optionally enable the systemd path unit shown in the script header for auto-restart.)
+> This installs a systemd path unit that watches `vpn-data/gluetun.env` and runs `docker compose --profile vpn restart gluetun` whenever the addon rewrites it. After this, save in the UI → 2-5 s later the tunnel is live. Uninstall with `sudo bash scripts/install-gluetun-watcher.sh --uninstall`.
 
 ---
 
@@ -316,8 +313,8 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 | `/api/img` | Image proxy (posters, logos) |
 | `/api/proxy/status` | Multi-proxy health (GET = state, POST `{action:"reprobe"}` = force probe). |
 | `/api/vpn/status` | VPN/proxy config on disk + multi-proxy health. |
-| `/api/vpn/servers` | List of known ProtonVPN server endpoints (public data). |
-| `/api/vpn/setup` | POST `{mode:"wireguard-conf"|"wireguard-key"|"proxy"|"clear", ...}` to switch VPN/proxy at runtime. |
+| `/api/vpn/servers` | List of ProtonVPN countries supported by the OpenVPN flow. |
+| `/api/vpn/setup` | POST `{mode:"proton-login"|"proxy"|"clear", ...}` to switch VPN/proxy at runtime. |
 | `/api/vpn/test` | GET = quick probe on the first alive proxy · POST `{proxyUrl?}` = test a specific proxy. |
 
 > `:key` is the addon session key (JWE-encrypted session). `:sid` is a short-lived cache id generated by the addon.

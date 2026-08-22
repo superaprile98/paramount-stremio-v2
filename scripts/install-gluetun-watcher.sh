@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# scripts/install-gluetun-watcher.sh
+#
+# Installa un watcher systemd che osserva le modifiche al file
+# vpn-data/gluetun.env e riavvia automaticamente il container
+# gluetun quando l'addon scrive nuove credenziali (ProtonVPN login
+# oppure proxy).
+#
+# Da eseguire UNA VOLTA sull'host (con sudo):
+#   sudo bash scripts/install-gluetun-watcher.sh
+#
+# Dopo l'installazione:
+#   - L'utente può cambiare server/proxy dall'UI /configure → card VPN
+#   - Nessun SSH è più necessario: il restart è automatico in 2-5 secondi
+#   - Lo script è disinstallabile con: sudo bash scripts/install-gluetun-watcher.sh --uninstall
+
+set -euo pipefail
+
+ADDON_DIR="${ADDON_DIR:-/opt/paramount-stremio}"
+WATCH_FILE="${WATCH_FILE:-${ADDON_DIR}/vpn-data/gluetun.env}"
+SERVICE_NAME="gluetun-auto-restart"
+
+if [ "${1:-}" = "--uninstall" ]; then
+    echo "==> Disinstallazione watcher ${SERVICE_NAME}…"
+    systemctl disable --now "${SERVICE_NAME}.path" "${SERVICE_NAME}.service" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${SERVICE_NAME}.path" "/etc/systemd/system/${SERVICE_NAME}.service"
+    systemctl daemon-reload
+    echo "✅ Disinstallato."
+    exit 0
+fi
+
+# Verifica che la directory esista (verrà creata al primo salvataggio UI).
+mkdir -p "$(dirname "${WATCH_FILE}")"
+
+# Verifica che docker compose sia disponibile.
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ docker non trovato. Installa Docker prima di proseguire."
+    exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+    echo "❌ docker compose plugin non trovato. Installa docker-compose-plugin."
+    exit 1
+fi
+
+# Verifica che gluetun sia presente nella config compose.
+if ! grep -q "^  gluetun:" "${ADDON_DIR}/docker-compose.yml"; then
+    echo "❌ Servizio 'gluetun' non trovato in ${ADDON_DIR}/docker-compose.yml"
+    echo "   Aggiorna prima il repo (git pull)."
+    exit 1
+fi
+
+# Crea il file .service.
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+cat > "${SERVICE_FILE}" <<EOF
+[Unit]
+Description=Restart gluetun container after VPN config change
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=${ADDON_DIR}
+ExecStart=/usr/bin/docker compose --profile vpn restart gluetun
+ExecStartPost=/usr/bin/bash ${ADDON_DIR}/scripts/restart-gluetun.sh
+StandardOutput=journal
+StandardError=journal
+EOF
+
+# Crea il file .path.
+PATH_FILE="/etc/systemd/system/${SERVICE_NAME}.path"
+cat > "${PATH_FILE}" <<EOF
+[Unit]
+Description=Watch ${WATCH_FILE} for changes (addon writes here from UI)
+
+[Path]
+PathExists=${WATCH_FILE}
+Unit=${SERVICE_NAME}.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "==> File creati:"
+echo "    ${SERVICE_FILE}"
+echo "    ${PATH_FILE}"
+
+# Ricarica systemd e abilita.
+systemctl daemon-reload
+systemctl enable --now "${SERVICE_NAME}.path"
+
+echo ""
+echo "✅ Watcher installato e attivo!"
+echo ""
+echo "Verifica:"
+echo "  systemctl status ${SERVICE_NAME}.path"
+echo ""
+echo "Adesso puoi cambiare VPN/proxy dall'UI /configure senza più SSH."
+echo "Disinstalla con: sudo bash scripts/install-gluetun-watcher.sh --uninstall"
