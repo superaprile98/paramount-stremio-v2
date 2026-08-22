@@ -260,9 +260,9 @@ curl -X POST -H 'Content-Type: application/json' \
 Paramount+ US geo-blocks many VPN endpoints. The addon ships with an **OpenVPN** integration for `gluetun` that works with the credentials you already have on your ProtonVPN account — no WireGuard keys or `.conf` files to manage.
 
 1. Subscribe to **ProtonVPN Plus** (gives access to the full server list, not just the free tier).
-2. Open `https://account.protonvpn.com/account-password` (or the **Account** page on the Proton web app) and scroll to **OpenVPN / IKEv2 username** and **OpenVPN / IKEv2 password**. These are **separate** from your Proton account password — Proton generates them for legacy OpenVPN clients. The username is typically your Proton username with the `+pmp` suffix (e.g. `yourname+pmp`).
+2. Open `https://account.protonvpn.com/account-password` (or the **Account** page on the Proton web app) and scroll to **OpenVPN / IKEv2 username** and **OpenVPN / IKEv2 password**. These are **separate** from your Proton account password — Proton generates them for legacy OpenVPN clients.
 3. Open the addon UI at `https://addon.example.com/configure` and go to the **🌐 VPN / Proxy** card → **🔐 Login Proton** tab.
-4. Paste the username and password, pick a country (start with **United States**), and click **Save**. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file and immediately reconfigures `gluetun`.
+4. Enter the username and password, pick a country (start with **United States**), and click **Save**. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file and immediately reconfigures `gluetun`.
 5. Click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the tunnel and see the exit IP, country, city, and ISP. The result is one of: **✅ OK** / **⚠️ VPN detected** / **🌍 Geo-blocked (HTTP 451)** / **❌ Connection failed**.
 
 If the test reports **VPN detected** or **Geo-blocked**, switch to a different country from the dropdown (Netherlands, Switzerland, Sweden, Iceland, Romania) and retry — ProtonVPN rotates exit IPs frequently.
@@ -273,7 +273,7 @@ For higher reliability, point the addon at **multiple VPN endpoints** with `PROX
 
 If you don't want to SSH into the server every time, the configure UI exposes a card **🌐 VPN / Proxy** that lets you configure the tunnel without editing files. Two modes:
 
-1. **🔐 Login Proton** — paste your ProtonVPN **OpenVPN/IKEv2 username** and **password** (from `account.protonvpn.com` → Account) and pick a country. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file consumed by `gluetun` (see `docker-compose.yml`). This is the simplest way and works with any ProtonVPN plan.
+1. **🔐 Login Proton** — enter your ProtonVPN **username** and **password** and pick a country. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file consumed by `gluetun` (see `docker-compose.yml`). This is the simplest way and works with any ProtonVPN plan.
 2. **🔌 HTTP proxy URL** — paste any HTTP/HTTPS/SOCKS5 proxy URL (with optional `user:pass@` credentials) without using a VPN tunnel at all.
 
 After saving, click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the new tunnel and see the exit IP, country, city, and ISP. The result is "✅ OK" / "⚠️ VPN detected" / "🌍 Geo-blocked (HTTP 451)" / "❌ Connection failed".
@@ -282,7 +282,7 @@ After saving, click **🧪 Test connection** to do a live probe against `https:/
 > ```bash
 > sudo bash scripts/install-gluetun-watcher.sh
 > ```
-> This installs a systemd path unit that watches `vpn-data/gluetun.env` and runs `docker compose --profile vpn restart gluetun` whenever the addon rewrites it. After this, save in the UI → 2-5 s later the tunnel is live. Uninstall with `sudo bash scripts/install-gluetun-watcher.sh --uninstall`.
+> This installs a systemd path unit that watches `vpn-data/gluetun.env` and runs `docker compose --profile vpn up -d gluetun` whenever the addon rewrites it (this also creates the container on first use). After this, save in the UI → 2-5 s later the tunnel is live. Uninstall with `sudo bash scripts/install-gluetun-watcher.sh --uninstall`.
 
 ---
 

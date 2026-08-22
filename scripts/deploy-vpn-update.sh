@@ -39,7 +39,10 @@ echo "==> [3/4] Crea dir vpn-data se mancante (per gluetun.env)"
 mkdir -p vpn-data
 chmod 700 vpn-data || true
 
-echo "==> [4/4] Installa/aggiorna watcher systemd per auto-restart gluetun"
+echo "==> [4/5] Crea il container gluetun (profilo vpn) se non esiste"
+docker compose --profile vpn up -d gluetun || true
+
+echo "==> [5/5] Installa/aggiorna watcher systemd per auto-restart gluetun"
 bash scripts/install-gluetun-watcher.sh
 
 echo ""
@@ -51,12 +54,12 @@ echo "Ora apri nel browser:"
 echo "  https://para.khnum.duckdns.org/configure"
 echo ""
 echo "Vai alla card 🌐 VPN / Proxy → tab 🔐 Login Proton:"
-echo "  - Username: tuo_username+pmp"
-echo "  - Password: password OpenVPN/IKEv2 da account.protonvpn.com"
+echo "  - Username: il tuo username Proton"
+echo "  - Password: la tua password Proton"
 echo "  - Country:  United States (default)"
 echo "  - Click    Save"
 echo ""
-echo "Dopo 3-5 secondi il tunnel OpenVPN è attivo. Verifica con:"
+echo "Dopo 3-5 secondi il tunnel è attivo. Verifica con:"
 echo "  docker logs --tail 50 gluetun | grep -i 'vpn is up\\|public ip'"
 echo ""
 echo "Test live:"
