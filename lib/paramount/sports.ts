@@ -212,25 +212,41 @@ export async function getLeagueEvents(
     const current = extractListings(data);
     const previous = includeReplays ? extractPreviousListings(data) : [];
 
-    if (process.env.DEBUG_PARAMOUNT === "1") {
-        const topKeys = data && typeof data === "object" ? Object.keys(data).join(",") : "";
-        const dataKeys = data?.data && typeof data.data === "object" ? Object.keys(data.data).join(",") : "";
-        console.log(
-            `[PPLUS] getLeagueEvents slug=${slug} current=${current.length} previous=${previous.length} channel=${channel ? "yes" : "no"} topKeys=[${topKeys}] dataKeys=[${dataKeys}]`
-        );
+    // --- DEBUG REPLAY (temporaneo) ---
+    const topKeys = data && typeof data === "object" ? Object.keys(data).join(",") : "NOT_OBJ";
+    const dataKeys = data?.data && typeof data.data === "object" ? Object.keys(data.data).join(",") : "NO_DATA";
+    console.log(
+        `[REPLAY-DEBUG] slug=${slug} topKeys=[${topKeys}] dataKeys=[${dataKeys}] current=${current.length} previous=${previous.length} channel=${channel ? "yes" : "no"}`
+    );
+    if (previous.length > 0) {
+        const sample = previous.slice(0, 3);
+        for (let i = 0; i < sample.length; i++) {
+            const keys = sample[i] && typeof sample[i] === "object" ? Object.keys(sample[i]).join(",") : "NOT_OBJ";
+            console.log(`[REPLAY-DEBUG] previous[${i}] keys=[${keys}] id=${sample[i]?.id} title=${JSON.stringify(sample[i]?.title)}`);
+        }
     }
+    // --- FINE DEBUG ---
 
     const events: SportEvent[] = [];
+    let normalizedCurrent = 0;
+    let discardedCurrent = 0;
     // Eventi correnti (live + upcoming): status derivato dai timestamp.
     for (const e of current) {
         const ev = normalizeSportEvent(e, league);
-        if (ev) events.push(ev);
+        if (ev) { events.push(ev); normalizedCurrent++; }
+        else { discardedCurrent++; }
     }
+    let normalizedPrevious = 0;
+    let discardedPrevious = 0;
     // Eventi passati (replay): forziamo lo status a "replay".
     for (const e of previous) {
         const ev = normalizeSportEvent(e, league, { forceStatus: "replay" });
-        if (ev) events.push(ev);
+        if (ev) { events.push(ev); normalizedPrevious++; }
+        else { discardedPrevious++; }
     }
+    console.log(
+        `[REPLAY-DEBUG] slug=${slug} normalizedCurrent=${normalizedCurrent} discardedCurrent=${discardedCurrent} normalizedPrevious=${normalizedPrevious} discardedPrevious=${discardedPrevious} totalEvents=${events.length}`
+    );
 
     // Ordina per inizio (più recenti prima).
     events.sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0));
