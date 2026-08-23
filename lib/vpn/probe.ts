@@ -8,6 +8,7 @@
  * Per ottenere l'IP pubblico e il paese, usa ipinfo.io (gratis, no auth).
  */
 
+import axios from 'axios';
 import { ProxyAgent } from 'proxy-agent';
 import { httpClient } from '../http/client';
 
@@ -46,6 +47,43 @@ function detectVpnInBody(body: string | undefined): boolean {
     return VPN_PATTERNS.some(re => re.test(sample));
 }
 
+type ProbeResponse = {
+    status: number;
+    ok: boolean;
+    text: string;
+    json: any;
+};
+
+async function requestWithProxy(
+    url: string,
+    proxyUrl: string | null,
+    headers: Record<string, string>,
+    timeoutMs: number,
+): Promise<ProbeResponse> {
+    const config: Record<string, any> = {
+        headers,
+        timeout: timeoutMs,
+        validateStatus: () => true,
+        maxRedirects: 0,
+        responseType: 'text',
+    };
+    if (proxyUrl) {
+        // proxy-agent: ProxyAgent è un http.Agent pensato per axios/http.request,
+        // NON per il dispatcher del fetch nativo (undici). Stesso pattern di lib/http/client.ts.
+        const agent = new ProxyAgent({ getProxyForUrl: () => proxyUrl });
+        config.httpAgent = agent;
+        config.httpsAgent = agent;
+        config.proxy = false;
+    }
+    const resp = await axios.get(url, config);
+    return {
+        status: resp.status,
+        ok: resp.status >= 200 && resp.status < 300,
+        text: typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data ?? ''),
+        json: resp.data,
+    };
+}
+
 async function probeOne(proxyUrl: string | null): Promise<ProbeResult> {
     const start = Date.now();
     const result: ProbeResult = {
@@ -63,11 +101,9 @@ async function probeOne(proxyUrl: string | null): Promise<ProbeResult> {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
         };
-        const response = proxyUrl
-            ? await fetchWithProxy(PROBE_URL, proxyUrl, headers)
-            : await fetch(PROBE_URL, { headers, signal: AbortSignal.timeout(20000) });
+        const response = await requestWithProxy(PROBE_URL, proxyUrl, headers, 20000);
         result.statusCode = response.status;
-        const body = await response.text().catch(() => '');
+        const body = response.text;
         result.vpnDetected = detectVpnInBody(body);
         result.geoBlocked = response.status === 451 || /451/.test(body.slice(0, 4096));
         result.ok = response.ok && !result.vpnDetected && !result.geoBlocked;
@@ -75,15 +111,12 @@ async function probeOne(proxyUrl: string | null): Promise<ProbeResult> {
         // Step 2: ipinfo per IP/paese (solo se il probe è andato bene).
         if (result.ok || result.statusCode === 200) {
             try {
-                const ipResp = proxyUrl
-                    ? await fetchWithProxy(IPINFO_URL, proxyUrl, headers)
-                    : await fetch(IPINFO_URL, { headers, signal: AbortSignal.timeout(10000) });
-                if (ipResp.ok) {
-                    const ipBody = await ipResp.json();
-                    result.ip = ipBody.ip;
-                    result.country = ipBody.country;
-                    result.city = ipBody.city;
-                    result.org = ipBody.org;
+                const ipResp = await requestWithProxy(IPINFO_URL, proxyUrl, headers, 10000);
+                if (ipResp.ok && ipResp.json && typeof ipResp.json === 'object') {
+                    result.ip = ipResp.json.ip;
+                    result.country = ipResp.json.country;
+                    result.city = ipResp.json.city;
+                    result.org = ipResp.json.org;
                 }
             } catch {
                 // Non bloccare: il probe Paramount+ ha già dato il verdetto.
@@ -96,12 +129,6 @@ async function probeOne(proxyUrl: string | null): Promise<ProbeResult> {
         result.elapsedMs = Date.now() - start;
     }
     return result;
-}
-
-async function fetchWithProxy(url: string, proxyUrl: string, headers: Record<string, string>): Promise<Response> {
-    const agent = new ProxyAgent({ getProxyForUrl: () => proxyUrl });
-    // @ts-expect-error - undici/Node fetch accepts dispatcher (TS lib doesn't declare it)
-    return await fetch(url, { headers, signal: AbortSignal.timeout(20000), dispatcher: agent });
 }
 
 /** Esegue il test live sul proxy specificato (o usa il round-robin corrente). */
