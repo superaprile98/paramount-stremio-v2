@@ -215,8 +215,11 @@ export async function getLeagueEvents(
     // --- DEBUG REPLAY (temporaneo) ---
     const topKeys = data && typeof data === "object" ? Object.keys(data).join(",") : "NOT_OBJ";
     const dataKeys = data?.data && typeof data.data === "object" ? Object.keys(data.data).join(",") : "NO_DATA";
+    const prevRaw = data?.previousListings;
+    const prevType = Array.isArray(prevRaw) ? `array[${prevRaw.length}]` : typeof prevRaw;
+    const prevKeys = prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw) ? Object.keys(prevRaw).join(",") : "N/A";
     console.log(
-        `[REPLAY-DEBUG] slug=${slug} topKeys=[${topKeys}] dataKeys=[${dataKeys}] current=${current.length} previous=${previous.length} channel=${channel ? "yes" : "no"}`
+        `[REPLAY-DEBUG] slug=${slug} topKeys=[${topKeys}] dataKeys=[${dataKeys}] current=${current.length} previous=${previous.length} channel=${channel ? "yes" : "no"} prevRawType=${prevType} prevRawKeys=[${prevKeys}]`
     );
     if (previous.length > 0) {
         const sample = previous.slice(0, 3);
