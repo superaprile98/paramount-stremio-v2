@@ -105,7 +105,9 @@ async function probeOne(proxyUrl: string | null): Promise<ProbeResult> {
         result.statusCode = response.status;
         const body = response.text;
         result.vpnDetected = detectVpnInBody(body);
-        result.geoBlocked = response.status === 451 || /451/.test(body.slice(0, 4096));
+        // Geo-block reale = HTTP 451. Il pattern /451/ sul body è un falso
+        // positivo (es. "BUILD_NUMBER":"2451" nella homepage di Paramount+).
+        result.geoBlocked = response.status === 451;
         result.ok = response.ok && !result.vpnDetected && !result.geoBlocked;
 
         // Step 2: ipinfo per IP/paese (solo se il probe è andato bene).
