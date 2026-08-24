@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ParamountAuthStart, ParamountClient, ParamountSession } from "@/lib/paramount/client";
 import { guessBaseUrl } from "@/lib/paramount/utils";
 import { withCors, optionsCors } from "@/lib/stremio/cors";
+import { storeSessionKey } from "@/lib/auth/session-store";
 
 export function OPTIONS() { return optionsCors(); }
 
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
 
     const base = guessBaseUrl(req);
     const manifestUrl = `${base}/api/stremio/${encodeURIComponent(key)}/manifest.json`;
+    const installToken = storeSessionKey(key);
+    const installUrl = `${base}/api/install/${installToken}`;
 
-    return withCors(Response.json({ ok: true, manifestUrl }));
+    return withCors(Response.json({ ok: true, manifestUrl, installToken, installUrl }));
 }
