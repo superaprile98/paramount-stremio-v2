@@ -172,8 +172,6 @@ export default function ConfigurePage() {
     const [activationCode, setActivationCode] = useState<string | null>(null);
     const [paramountAuth, setParamountAuth] = useState<ParamountAuthStart | null>(null);
     const [manifestUrl, setManifestUrl] = useState<string | null>(null);
-    const [m3uUrl, setM3uUrl] = useState<string | null>(null);
-    const [epgUrl, setEpgUrl] = useState<string | null>(null);
     const [key, setKey] = useState("");
     const [toast, setToast] = useState<string | null>(null);
     const [localBannerDismissed, setLocalBannerDismissed] = useState(false);
@@ -189,8 +187,6 @@ export default function ConfigurePage() {
         setActivationCode(null);
         setParamountAuth(null);
         setManifestUrl(null);
-        setM3uUrl(null);
-        setEpgUrl(null);
         setPasswordError(null);
     }
 
@@ -231,8 +227,6 @@ export default function ConfigurePage() {
             const j = await r.json().catch(() => ({}));
             if (r.ok && j?.ok) {
                 setManifestUrl(j.manifestUrl);
-                setM3uUrl(j.m3uUrl ?? null);
-                setEpgUrl(j.epgUrl ?? null);
                 // svuota la password dalla memoria del browser (best effort)
                 setPassword("");
                 showToast("Logged in ✅");
@@ -257,8 +251,6 @@ export default function ConfigurePage() {
         const j = await r.json();
         if (j.ok) {
             setManifestUrl(j.manifestUrl);
-            setM3uUrl(j.m3uUrl ?? null);
-            setEpgUrl(j.epgUrl ?? null);
             return true;
         }
         return false;
@@ -306,18 +298,6 @@ export default function ConfigurePage() {
         if (!manifestUrl) return;
         const ok = await copyToClipboard(manifestUrl);
         showToast(ok ? "Manifest URL copied ✅" : "Unable to copy 😅");
-    }
-
-    async function onCopyM3u() {
-        if (!m3uUrl) return;
-        const ok = await copyToClipboard(m3uUrl);
-        showToast(ok ? "M3U URL copied ✅" : "Unable to copy 😅");
-    }
-
-    async function onCopyEpg() {
-        if (!epgUrl) return;
-        const ok = await copyToClipboard(epgUrl);
-        showToast(ok ? "EPG URL copied ✅" : "Unable to copy 😅");
     }
 
     // --- Sports preferences (Fase 3) ---
@@ -679,25 +659,6 @@ export default function ConfigurePage() {
                             </div>
                         </Card>
 
-                        <Card
-                            title="3 → IPTV (optional)"
-                            subtitle="Use the M3U playlist and EPG in any IPTV player (e.g. TiviMate, VLC)."
-                        >
-                            <div className="space-y-3">
-                                <TextArea value={m3uUrl || "Login to generate the M3U playlist..."} readOnly />
-                                <div className="flex flex-wrap gap-2">
-                                    <Button onClick={onCopyM3u} disabled={!m3uUrl} variant="secondary">
-                                        Copy M3U URL
-                                    </Button>
-                                </div>
-                                <TextArea value={epgUrl || "Login to generate the EPG..."} readOnly />
-                                <div className="flex flex-wrap gap-2">
-                                    <Button onClick={onCopyEpg} disabled={!epgUrl} variant="secondary">
-                                        Copy EPG URL
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
                     </div>
 
                     <div className="mt-6">

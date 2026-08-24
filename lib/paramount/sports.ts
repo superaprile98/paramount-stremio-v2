@@ -77,7 +77,7 @@ function extractChannel(data: any): any {
 }
 
 // ---------------------------------------------------------------------------
-// Listings live+upcoming (usato dalle route IPTV m3u / epg.xml).
+// Listings live+upcoming.
 // Manteniamo qui la cache per-sessione (cross-tenant safe) e il filtro
 // opzionale `onlyLive`. Questo sostituisce il vecchio
 // lib/paramount/types/sports.ts#getSportListing, rimosso per evitare
@@ -111,7 +111,6 @@ function filterSportListing(listings: SportListingItem[], onlyLive: boolean): Sp
 
 /**
  * Recupera i listing live+upcoming dall'endpoint sports.
- * Usato dalle route IPTV (/api/iptv/[key]/playlist.m3u e epg.xml).
  * Cache 30s per session fingerprint (no cross-tenant).
  */
 export async function getLiveUpcomingSportListings(session: ParamountSession, onlyLive: boolean): Promise<SportListingItem[]> {
