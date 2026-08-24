@@ -359,7 +359,8 @@ export class ParamountClient {
     /**
      * Listing per singola competizione (Fase 1/2).
      * Risposta: { listing: SportListingItem[], previousListings: SportListingItem[], channel: any[] }.
-     * `previousListings` contiene le partite terminate (replay).
+     * `previousListings` e' storicamente vuoto sull'API live: i replay sono
+     * recuperati da `getShowSectionReplays()` (endpoint VOD).
      */
     async getSportLeagueListings(slug: string, params: Record<string, any> = {}): Promise<any> {
         return await this.getJson<any>(
@@ -371,6 +372,60 @@ export class ParamountClient {
                 ...params,
             }
         );
+    }
+
+    /**
+     * Sezione VOD di uno show sportivo (es. "Match Replays").
+     *
+     * Endpoint pubblico del sito web Paramount+: NON e' sotto `/apps-api`,
+     * quindi non possiamo usare `getJson()`. Effettuiamo una GET diretta con
+     * `httpClient` (gestisce gia' proxy e cookie).
+     *
+     * Risposta tipica (Serie A sectionId 292496):
+     *   {
+     *     success: true,
+     *     result: {
+     *       id, title, data: VodReplayItem[], total, ...
+     *     }
+     *   }
+     *
+     * Ogni `VodReplayItem` contiene (tra gli altri): contentId (per lo stream),
+     * title ("Full Match Replay: A vs. B"), label, seriesTitle (lega),
+     * airDate (ms), thumb (poster), description.
+     */
+    async getShowSection(
+        slug: string,
+        sectionId: number,
+        params: { offset?: number; limit?: number } = {}
+    ): Promise<any> {
+        const offset = params.offset ?? 0;
+        const limit = params.limit ?? 100;
+        // Endpoint pubblico (no /apps-api, no `at` token).
+        const path =
+            `/shows/${encodeURIComponent(slug)}` +
+            `/xhr/sectionId/${sectionId}` +
+            `/offset/${offset}/limit/${limit}/xs/0/`;
+        const url = `${PPLUS_BASE_URL}${path}`;
+
+        const userAgent = await PPLUS_HEADER();
+        const { status, data: json } = await httpClient.get(url, {
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": userAgent,
+                ...(this.session?.cookies?.length
+                    ? { Cookie: this.session.cookies.map((c) => c.split(";")[0]).join("; ") }
+                    : {}),
+            },
+        });
+
+        if (status >= 400) {
+            console.error(
+                `[PPLUS] getShowSection ${path} returned ${status}:`,
+                JSON.stringify(json)?.slice(0, 300)
+            );
+        }
+        return json;
     }
 
     async getLiveChannels(params: Record<string, any> = {}): Promise<ListResponse<LiveChannelItem>> {
