@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionKey } from "@/lib/auth/session-store";
 import { guessBaseUrl } from "@/lib/paramount/utils";
+import { ParamountClient } from "@/lib/paramount/client";
+import { buildManifest } from "@/lib/stremio/manifest";
 
 export const runtime = "nodejs";
 
 /**
  * GET /api/install/<token>
- * Redirect 302 al manifest.json Stremio usando il token corto.
- * Risolve il problema del deep link stremio:// con URL JWE troppo lunghi.
+ * Restituisce il manifest JSON Stremio direttamente (senza redirect).
+ * La URL corta (~55 char) viene accettata da stremio:// deep link senza
+ * troncamento e senza "Failed to fetch" causato dal 302 redirect.
  */
 export async function GET(
     req: NextRequest,
@@ -24,8 +27,22 @@ export async function GET(
         return NextResponse.json({ error: "Token expired or not found" }, { status: 404 });
     }
 
-    const base = guessBaseUrl(req);
-    const manifestUrl = `${base}/api/stremio/${encodeURIComponent(jweKey)}/manifest.json`;
+    // Carica la session Paramount+ e costruisce il manifest
+    const client = new ParamountClient();
+    await client.setSessionKey(jweKey);
 
-    return NextResponse.redirect(manifestUrl, 302);
+    const session = client.getSession();
+    if (!session) {
+        return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    }
+
+    const base = guessBaseUrl(req);
+    const manifest = await buildManifest(session, base);
+
+    return NextResponse.json(manifest, {
+        headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    });
 }

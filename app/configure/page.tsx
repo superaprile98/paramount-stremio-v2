@@ -227,11 +227,6 @@ export default function ConfigurePage() {
         return `stremio://${installUrl.replace(/^https?:\/\//, "")}`;
     }, [installUrl]);
 
-    const stremioWebInstallUrl = useMemo(() => {
-        if (!installUrl) return "";
-        return `https://app.strem.io/shell-v4.4?addon=${encodeURIComponent(installUrl)}`;
-    }, [installUrl]);
-
     /* ── clipboard ── */
 
     async function onCopyInstallUrl() {
@@ -422,17 +417,6 @@ export default function ConfigurePage() {
                                         : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                                 >
                                     ⚡ Install in Stremio
-                                </a>
-
-                                <a
-                                    href={stremioWebInstallUrl || "#"}
-                                    onClick={(e) => !stremioWebInstallUrl && e.preventDefault()}
-                                    target="_blank" rel="noreferrer"
-                                    className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium transition ${stremioWebInstallUrl
-                                        ? "bg-gray-100 text-gray-900 hover:bg-gray-200"
-                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                                >
-                                    Open in web app
                                 </a>
 
                                 <button
