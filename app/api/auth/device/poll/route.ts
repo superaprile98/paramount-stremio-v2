@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const base = guessBaseUrl(req);
     const manifestUrl = `${base}/api/stremio/${encodeURIComponent(key)}/manifest.json`;
     const installToken = storeSessionKey(key);
-    const installUrl = `${base}/api/install/${installToken}`;
+    const installUrl = `${base}/api/install/${installToken}/manifest.json`;
 
     return withCors(Response.json({ ok: true, manifestUrl, installToken, installUrl }));
 }

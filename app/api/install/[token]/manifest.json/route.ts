@@ -7,10 +7,9 @@ import { buildManifest } from "@/lib/stremio/manifest";
 export const runtime = "nodejs";
 
 /**
- * GET /api/install/<token>
- * Restituisce il manifest JSON Stremio direttamente (senza redirect).
- * La URL corta (~55 char) viene accettata da stremio:// deep link senza
- * troncamento e senza "Failed to fetch" causato dal 302 redirect.
+ * GET /api/install/<token>/manifest.json
+ * Restituisce il manifest JSON Stremio direttamente.
+ * L'URL deve finire con "manifest.json" per essere accettato da Stremio desktop.
  */
 export async function GET(
     req: NextRequest,
@@ -27,7 +26,6 @@ export async function GET(
         return NextResponse.json({ error: "Token expired or not found" }, { status: 404 });
     }
 
-    // Carica la session Paramount+ e costruisce il manifest
     const client = new ParamountClient();
     await client.setSessionKey(jweKey);
 
