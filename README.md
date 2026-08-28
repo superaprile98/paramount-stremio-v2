@@ -113,7 +113,7 @@ Oracle Cloud offers **Always Free** ARM/Ampere A1 instances — enough to run th
 
 The installer auto-detects the distro and works on **Oracle Linux 9** (`dnf`) and **Ubuntu 22.04/24.04 LTS** (`apt`) — both officially supported on Ampere A1 Always Free.
 
-**Prereqs**: a VM.Standard.A1.Flex instance running Oracle Linux 9 or Ubuntu 22.04/24.04, with ports `7850` (or `80`/`443`) open in the Oracle Security List, SSH key, and this repo already cloned to `/home/ubuntu/paramount-stremio`. The addon runs comfortably on **2 OCPU + 12 GB RAM** (or any config with ≥ 2 GB RAM). With 1 GB RAM you need to add swap — see below.
+**Prereqs**: a VM.Standard.A1.Flex instance running Oracle Linux 9 or Ubuntu 22.04/24.04, with ports `7850` (or `80`/`443`) open in the Oracle Security List, SSH key, and this repo already cloned to `/home/ubuntu/server-stack/paramount-stremio`. The addon runs comfortably on **2 OCPU + 12 GB RAM** (or any config with ≥ 2 GB RAM). With 1 GB RAM you need to add swap — see below.
 
 ```bash
 # 1) (Only on 1 GB RAM VMs) install swap — not needed on 2+ GB.
@@ -123,7 +123,7 @@ sudo bash scripts/setup-swap.sh   # opzionale se la VM ha >= 2 GB RAM
 sudo bash scripts/deploy-docker.sh
 #   - detects your public IP automatically
 #   - installs Docker Engine + compose plugin (get.docker.com)
-#   - clones/updates the repo in /home/ubuntu/paramount-stremio
+#   - clones/updates the repo in /home/ubuntu/server-stack/paramount-stremio
 #   - creates .env from .env.example and generates KEY_SECRET
 #   - docker compose up -d --build
 #   - waits for the /api/health healthcheck and prints the final URL
@@ -140,7 +140,7 @@ sudo bash scripts/update-docker.sh
 docker compose ps
 docker compose logs -f            # live log
 docker compose restart
-sudo nano /home/ubuntu/paramount-stremio/.env   # change BASE_URL/PORT/KEY_SECRET here
+sudo nano /home/ubuntu/server-stack/paramount-stremio/.env   # change BASE_URL/PORT/KEY_SECRET here
 ```
 
 > A bare-metal alternative (Node.js + `systemd`, no Docker) is also available: `sudo bash scripts/install-oracle.sh` / `scripts/update-oracle.sh`. See [`deploy/oracle/README.md`](deploy/oracle/README.md) § 7.

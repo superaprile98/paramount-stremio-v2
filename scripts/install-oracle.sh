@@ -11,7 +11,7 @@
 #   2) Installa Node.js 20 LTS via NodeSource
 #   3) Crea utente di sistema "addon" (no login, no home scrivibile)
 #   4) Prepara /etc/paramount-stremio/ (env file con permessi stretti)
-#   5) Clona o aggiorna il repo in /home/ubuntu/paramount-stremio
+#   5) Clona o aggiorna il repo in /home/ubuntu/server-stack/paramount-stremio
 #   6) npm ci + next build
 #   7) Installa e avvia il servizio systemd
 #
@@ -122,7 +122,7 @@ echo "    npm:     $(npm -v)"
 # 2) Utente di sistema 'addon'
 echo "==> [2/6] Creazione utente di sistema 'addon'"
 if ! id addon >/dev/null 2>&1; then
-    useradd --system --create-home --shell /sbin/nologin --home-dir /home/ubuntu/paramount-stremio addon
+    useradd --system --create-home --shell /sbin/nologin --home-dir /home/ubuntu/server-stack/paramount-stremio addon
 fi
 
 # 3) Directory per env + log
@@ -155,28 +155,28 @@ fi
 
 # 4) Clone o update del repo
 echo "==> [4/6] Clone / pull del repository"
-if [ ! -d /home/ubuntu/paramount-stremio/.git ]; then
-    git clone --branch "${BRANCH}" --depth 1 "${REPO_URL}" /home/ubuntu/paramount-stremio
+if [ ! -d /home/ubuntu/server-stack/paramount-stremio/.git ]; then
+    git clone --branch "${BRANCH}" --depth 1 "${REPO_URL}" /home/ubuntu/server-stack/paramount-stremio
 else
-    cd /home/ubuntu/paramount-stremio
+    cd /home/ubuntu/server-stack/paramount-stremio
     git fetch --depth 1 origin "${BRANCH}"
     git checkout "${BRANCH}"
     git reset --hard "origin/${BRANCH}"
 fi
-chown -R addon:addon /home/ubuntu/paramount-stremio
+chown -R addon:addon /home/ubuntu/server-stack/paramount-stremio
 
 # 5) Dipendenze + build
 echo "==> [5/6] npm ci + next build (può richiedere 1-3 minuti)"
-cd /home/ubuntu/paramount-stremio
-sudo -u addon HOME=/home/ubuntu/paramount-stremio npm ci --omit=dev --no-audit --no-fund || \
-sudo -u addon HOME=/home/ubuntu/paramount-stremio npm ci --no-audit --no-fund
+cd /home/ubuntu/server-stack/paramount-stremio
+sudo -u addon HOME=/home/ubuntu/server-stack/paramount-stremio npm ci --omit=dev --no-audit --no-fund || \
+sudo -u addon HOME=/home/ubuntu/server-stack/paramount-stremio npm ci --no-audit --no-fund
 # Servono i devDependencies per "next build"
-sudo -u addon HOME=/home/ubuntu/paramount-stremio npm install --no-audit --no-fund --include=dev typescript @types/node @types/react @types/react-dom 2>/dev/null || true
-sudo -u addon HOME=/home/ubuntu/paramount-stremio env NODE_ENV=production npx next build
+sudo -u addon HOME=/home/ubuntu/server-stack/paramount-stremio npm install --no-audit --no-fund --include=dev typescript @types/node @types/react @types/react-dom 2>/dev/null || true
+sudo -u addon HOME=/home/ubuntu/server-stack/paramount-stremio env NODE_ENV=production npx next build
 
 # 6) Systemd unit
 echo "==> [6/6] Installazione unit systemd e avvio servizio"
-install -m 0644 /home/ubuntu/paramount-stremio/scripts/systemd/paramount-stremio.service /etc/systemd/system/paramount-stremio.service
+install -m 0644 /home/ubuntu/server-stack/paramount-stremio/scripts/systemd/paramount-stremio.service /etc/systemd/system/paramount-stremio.service
 systemctl daemon-reload
 systemctl enable paramount-stremio.service
 systemctl restart paramount-stremio.service

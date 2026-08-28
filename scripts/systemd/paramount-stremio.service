@@ -8,10 +8,10 @@ Wants=network-online.target
 Type=simple
 User=addon
 Group=addon
-WorkingDirectory=/home/ubuntu/paramount-stremio
+WorkingDirectory=/home/ubuntu/server-stack/paramount-stremio
 EnvironmentFile=/etc/paramount-stremio/paramount-stremio.env
 ExecStartPre=/usr/bin/env node -e "console.log('starting paramount-stremio...')"
-ExecStart=/usr/bin/node /home/ubuntu/paramount-stremio/node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT}
+ExecStart=/usr/bin/node /home/ubuntu/server-stack/paramount-stremio/node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT}
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=20s
@@ -21,7 +21,7 @@ KillSignal=SIGTERM
 # Sicurezza: limita visibilità filesystem
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/home/ubuntu/paramount-stremio /var/log/paramount-stremio
+ReadWritePaths=/home/ubuntu/server-stack/paramount-stremio /var/log/paramount-stremio
 PrivateTmp=yes
 NoNewPrivileges=yes
 

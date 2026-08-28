@@ -217,7 +217,7 @@ sing-box:
 ## 12. Deploy sul VPS
 
 1. Commit + push (catalog fix + VLESS).
-2. `ssh ubuntu@92.4.220.196` → `cd /home/ubuntu/paramount-stremio && git pull`.
+2. `ssh ubuntu@92.4.220.196` → `cd /home/ubuntu/server-stack/paramount-stremio && git pull`.
 3. `docker compose up -d --build` (paramount ricreato, PROXY_URLS nuovo default).
 4. `sudo bash scripts/install-vpn-watcher.sh` (installa watcher sing-box, rimuove gluetun).
 5. `docker compose --profile vpn rm -f gluetun` (pulizia legacy).

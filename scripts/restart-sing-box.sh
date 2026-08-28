@@ -18,7 +18,7 @@
 #   Description=Watch sing-box config
 #
 #   [Path]
-#   PathExists=/home/ubuntu/paramount-stremio/vpn-data/sing-box/config.json
+#   PathExists=/home/ubuntu/server-stack/paramount-stremio/vpn-data/sing-box/config.json
 #
 #   [Install]
 #   WantedBy=multi-user.target
@@ -30,7 +30,7 @@
 #
 #   [Service]
 #   Type=oneshot
-#   ExecStart=/home/ubuntu/paramount-stremio/scripts/restart-sing-box.sh
+#   ExecStart=/home/ubuntu/server-stack/paramount-stremio/scripts/restart-sing-box.sh
 #   EOF
 #
 #   sudo systemctl enable --now sing-box-restart.path
@@ -38,7 +38,7 @@
 
 set -euo pipefail
 
-ADDON_DIR="${ADDON_DIR:-/home/ubuntu/paramount-stremio}"
+ADDON_DIR="${ADDON_DIR:-/home/ubuntu/server-stack/paramount-stremio}"
 
 cd "${ADDON_DIR}"
 

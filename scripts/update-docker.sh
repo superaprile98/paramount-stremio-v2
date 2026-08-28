@@ -9,7 +9,7 @@
 set -euo pipefail
 
 BRANCH="${1:-main}"
-APP_DIR="/home/ubuntu/paramount-stremio"
+APP_DIR="/home/ubuntu/server-stack/paramount-stremio"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERRORE: esegui come root (sudo bash $0)" >&2
@@ -25,9 +25,21 @@ fi
 cd "${APP_DIR}"
 
 echo "==> Fetch + reset su origin/${BRANCH}"
+# Preserva le modifiche locali a docker-compose.yml (es. niente `ports:` perché
+# NPM fa da reverse proxy, network `reverse-proxy` invece di `server-stack_default`):
+# il `git reset --hard` qui sotto le cancellerebbe.
+if [ -f docker-compose.yml ] && ! git diff --quiet docker-compose.yml; then
+    cp docker-compose.yml /tmp/docker-compose.yml.local
+    echo "    docker-compose.yml locale salvato (verrà ripristinato dopo il pull)"
+fi
 git fetch --depth 1 origin "${BRANCH}"
 git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
+if [ -f /tmp/docker-compose.yml.local ]; then
+    cp /tmp/docker-compose.yml.local docker-compose.yml
+    rm -f /tmp/docker-compose.yml.local
+    echo "    docker-compose.yml locale ripristinato"
+fi
 
 echo "==> docker compose up -d --build (rebuild: 1-3 minuti)"
 docker compose up -d --build

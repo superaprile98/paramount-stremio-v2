@@ -10,11 +10,11 @@
 #   sudo bash scripts/deploy-vpn-update.sh
 #
 # Prerequisiti: deploy-docker.sh già eseguito (Docker + repo in
-# /home/ubuntu/paramount-stremio).
+# /home/ubuntu/server-stack/paramount-stremio).
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/ubuntu/paramount-stremio}"
+APP_DIR="${APP_DIR:-/home/ubuntu/server-stack/paramount-stremio}"
 cd "${APP_DIR}"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -28,9 +28,21 @@ if [ ! -d .git ]; then
 fi
 
 echo "==> [1/4] Pull ultimo main"
+# Preserva le modifiche locali a docker-compose.yml (es. niente `ports:` perché
+# NPM fa da reverse proxy, network `reverse-proxy` invece di `server-stack_default`):
+# il `git reset --hard` qui sotto le cancellerebbe.
+if [ -f docker-compose.yml ] && ! git diff --quiet docker-compose.yml; then
+    cp docker-compose.yml /tmp/docker-compose.yml.local
+    echo "    docker-compose.yml locale salvato (verrà ripristinato dopo il pull)"
+fi
 git fetch --depth 1 origin main
 git checkout main
 git reset --hard origin/main
+if [ -f /tmp/docker-compose.yml.local ]; then
+    cp /tmp/docker-compose.yml.local docker-compose.yml
+    rm -f /tmp/docker-compose.yml.local
+    echo "    docker-compose.yml locale ripristinato"
+fi
 
 echo "==> [2/4] Rebuild + restart addon (mantiene profilo VPN spento finché non configuri)"
 docker compose up -d --build
