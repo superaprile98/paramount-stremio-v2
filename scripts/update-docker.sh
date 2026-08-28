@@ -9,7 +9,7 @@
 set -euo pipefail
 
 BRANCH="${1:-main}"
-APP_DIR="/opt/paramount-stremio"
+APP_DIR="/home/ubuntu/paramount-stremio"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERRORE: esegui come root (sudo bash $0)" >&2

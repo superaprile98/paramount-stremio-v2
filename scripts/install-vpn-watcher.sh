@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-ADDON_DIR="${ADDON_DIR:-/opt/paramount-stremio}"
+ADDON_DIR="${ADDON_DIR:-/home/ubuntu/paramount-stremio}"
 WATCH_FILE="${WATCH_FILE:-${ADDON_DIR}/vpn-data/sing-box/config.json}"
 SERVICE_NAME="sing-box-auto-restart"
 LEGACY_SERVICE_NAME="gluetun-auto-restart"

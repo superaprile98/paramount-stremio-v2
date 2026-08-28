@@ -12,13 +12,13 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -d /opt/paramount-stremio ]; then
-    echo "ERRORE: installazione non trovata in /opt/paramount-stremio" >&2
+if [ ! -d /home/ubuntu/paramount-stremio ]; then
+    echo "ERRORE: installazione non trovata in /home/ubuntu/paramount-stremio" >&2
     echo "       esegui prima: sudo bash scripts/install-oracle.sh" >&2
     exit 1
 fi
 
-cd /opt/paramount-stremio
+cd /home/ubuntu/paramount-stremio
 
 echo "==> Fetch + reset su origin/${BRANCH}"
 sudo -u addon git fetch --depth 1 origin "${BRANCH}"
@@ -26,10 +26,10 @@ sudo -u addon git checkout "${BRANCH}"
 sudo -u addon git reset --hard "origin/${BRANCH}"
 
 echo "==> npm ci"
-sudo -u addon HOME=/opt/paramount-stremio npm ci --no-audit --no-fund
+sudo -u addon HOME=/home/ubuntu/paramount-stremio npm ci --no-audit --no-fund
 
 echo "==> next build"
-sudo -u addon HOME=/opt/paramount-stremio env NODE_ENV=production npx next build
+sudo -u addon HOME=/home/ubuntu/paramount-stremio env NODE_ENV=production npx next build
 
 echo "==> Restart servizio"
 systemctl restart paramount-stremio

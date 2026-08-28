@@ -10,11 +10,11 @@
 #   sudo bash scripts/deploy-vpn-update.sh
 #
 # Prerequisiti: deploy-docker.sh già eseguito (Docker + repo in
-# /opt/paramount-stremio).
+# /home/ubuntu/paramount-stremio).
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/paramount-stremio}"
+APP_DIR="${APP_DIR:-/home/ubuntu/paramount-stremio}"
 cd "${APP_DIR}"
 
 if [ "$(id -u)" -ne 0 ]; then

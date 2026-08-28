@@ -8,7 +8,7 @@
 #   1) Rileva il package manager (dnf / apt / yum)
 #   2) Installa Docker Engine + compose plugin (se mancanti)
 #   3) Aggiunge l'utente corrente al gruppo docker
-#   4) Clona/aggiorna il repo in /opt/paramount-stremio
+#   4) Clona/aggiorna il repo in /home/ubuntu/paramount-stremio
 #   5) Crea .env da .env.example (genera KEY_SECRET se mancante)
 #   6) docker compose up -d --build
 #   7) Verifica l'healthcheck
@@ -27,7 +27,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/superaprile98/paramount-stremio-v2.git}"
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-7850}"
-APP_DIR="/opt/paramount-stremio"
+APP_DIR="/home/ubuntu/paramount-stremio"
 
 # Detect distro / package manager
 detect_pkg_manager() {

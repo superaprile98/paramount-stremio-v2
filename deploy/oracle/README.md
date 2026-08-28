@@ -71,17 +71,17 @@ ssh <user>@<pub-ip>
 # (opzionale, solo se VM con 1 GB RAM)
 # sudo bash scripts/setup-swap.sh
 
-cd /opt/paramount-stremio         # se hai già clonato qui
+cd /home/ubuntu/paramount-stremio # se hai già clonato qui
 sudo bash scripts/deploy-docker.sh
 ```
 
-> Se non hai ancora clonato il repo sulla VM: `sudo git clone https://github.com/superaprile98/paramount-stremio-v2.git /opt/paramount-stremio && cd /opt/paramount-stremio`.
+> Se non hai ancora clonato il repo sulla VM: `sudo git clone https://github.com/superaprile98/paramount-stremio-v2.git /home/ubuntu/paramount-stremio && cd /home/ubuntu/paramount-stremio`.
 
 Lo script:
 1. Rileva `dnf` o `apt` automaticamente
 2. Installa **Docker Engine + compose plugin** (via script ufficiale `get.docker.com`)
 3. Aggiunge l'utente al gruppo `docker` (ri-login per usare docker senza sudo)
-4. Clona/aggiorna il repo in `/opt/paramount-stremio`
+4. Clona/aggiorna il repo in `/home/ubuntu/paramount-stremio`
 5. Crea `.env` da `.env.example` e genera `KEY_SECRET` (se mancante)
 6. `docker compose up -d --build`
 7. Attende l'healthcheck (`/api/health`) e stampa l'URL finale
@@ -102,7 +102,7 @@ Dopo un `git push` sul branch `main`:
 
 ```bash
 ssh <user>@<pub-ip>
-cd /opt/paramount-stremio
+cd /home/ubuntu/paramount-stremio
 sudo bash scripts/update-docker.sh
 ```
 
@@ -117,7 +117,7 @@ Lo script fa fetch, `docker compose up -d --build` e attende l'healthcheck. **I 
 | Restart | `docker compose restart` |
 | Stop | `docker compose down` |
 | Stop + rimozione volume dati | `docker compose down -v` ⚠️ cancella prefs e login |
-| Modificare env | `sudo nano /opt/paramount-stremio/.env && sudo bash scripts/update-docker.sh` |
+| Modificare env | `sudo nano /home/ubuntu/paramount-stremio/.env && sudo bash scripts/update-docker.sh` |
 | Backup dati | `docker run --rm -v paramount-data:/data -v "$PWD":/backup alpine tar czf /backup/paramount-data.tar.gz -C /data .` |
 | Pulire immagini vecchie | `docker image prune -f` |
 
@@ -147,7 +147,7 @@ Cause comuni:
 
 ### Il banner in `/configure` mostra ancora "Local address detected"
 
-Hai dimenticato di impostare `BASE_URL` nel `.env`. Modifica `/opt/paramount-stremio/.env`:
+Hai dimenticato di impostare `BASE_URL` nel `.env`. Modifica `/home/ubuntu/paramount-stremio/.env`:
 
 ```
 BASE_URL=http://<pub-ip>:7850
@@ -167,7 +167,7 @@ Stai navigando su `http://` ma Stremio desktop può avere problemi con HTTP (mix
 Se hai già NPM installato sulla stessa VPS via `docker compose` (tipicamente in una cartella `server-stack/`), `docker-compose.yml` è già configurato per collegarsi alla network `server-stack_default` di NPM.
 
 1. Verifica network: `sudo docker network ls | grep server-stack_default`
-2. Ricostruisci Paramount: `cd /opt/paramount-stremio && sudo docker compose up -d --build`
+2. Ricostruisci Paramount: `cd /home/ubuntu/paramount-stremio && sudo docker compose up -d --build`
 3. In NPM → **Hosts → Add Proxy Host**:
    - **Domain Names**: `<tuo-dominio-duckdns>`
    - **Forward Hostname/IP**: `paramount-stremio` (nome del container, non IP)
@@ -213,7 +213,7 @@ sudo certbot --nginx -d addon.example.com
 sudo systemctl restart nginx
 ```
 
-Poi aggiorna `BASE_URL=https://addon.example.com` in `/opt/paramount-stremio/.env` e apri la porta 80+443 invece della 7850 nella Security List.
+Poi aggiorna `BASE_URL=https://addon.example.com` in `/home/ubuntu/paramount-stremio/.env` e apri la porta 80+443 invece della 7850 nella Security List.
 
 ## 6. Persistenza dei dati
 
@@ -238,7 +238,7 @@ docker run --rm -v paramount-data:/data -v "$PWD":/backup alpine \
 Se preferisci **non usare Docker** (es. VM da 1 GB RAM senza swap), esiste il percorso bare-metal con Node.js 20 LTS e servizio `systemd`:
 
 ```bash
-cd /opt/paramount-stremio
+cd /home/ubuntu/paramount-stremio
 sudo bash scripts/install-oracle.sh     # installa Node.js, crea utente 'addon', systemd unit
 sudo bash scripts/update-oracle.sh      # aggiornamenti successivi
 ```
@@ -249,7 +249,7 @@ Differenze rispetto a Docker:
 |---|---|---|
 | Dipendenze sull'host | Solo Docker Engine | Node.js 20 + git |
 | Isolamento | Container non-root, `cap_drop: ALL` | Utente di sistema `addon` |
-| Persistenza | Volume named `paramount-data` | `/opt/paramount-stremio/.data` |
+| Persistenza | Volume named `paramount-data` | `/home/ubuntu/paramount-stremio/.data` |
 | Aggiornamento | `update-docker.sh` (rebuild immagine) | `update-oracle.sh` (npm ci + next build) |
 | Log | `docker compose logs -f` | `journalctl -u paramount-stremio -f` |
 | Porta di default | `7850` | `3000` |
