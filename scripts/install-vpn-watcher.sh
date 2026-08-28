@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
-# scripts/install-gluetun-watcher.sh
+# scripts/install-vpn-watcher.sh
 #
 # Installa un watcher systemd che osserva le modifiche al file
-# vpn-data/gluetun.env e riavvia automaticamente il container
-# gluetun quando l'addon scrive nuove credenziali (ProtonVPN login
-# oppure proxy).
+# vpn-data/sing-box/config.json e riavvia automaticamente il container
+# sing-box quando l'addon scrive una nuova config (VLESS/Hysteria2/VMess/
+# Trojan/SS dalla UI /configure).
 #
 # Da eseguire UNA VOLTA sull'host (con sudo):
-#   sudo bash scripts/install-gluetun-watcher.sh
+#   sudo bash scripts/install-vpn-watcher.sh
 #
 # Dopo l'installazione:
-#   - L'utente può cambiare server/proxy dall'UI /configure → card VPN
+#   - L'utente può cambiare server/subscription dall'UI /configure → card VPN
 #   - Nessun SSH è più necessario: il restart è automatico in 2-5 secondi
-#   - Lo script è disinstallabile con: sudo bash scripts/install-gluetun-watcher.sh --uninstall
+#   - Lo script è disinstallabile con: sudo bash scripts/install-vpn-watcher.sh --uninstall
+#
+# NOTA: se era installato il vecchio watcher gluetun (gluetun-auto-restart),
+# questo script lo disinstalla automaticamente (--uninstall legacy).
 
 set -euo pipefail
 
 ADDON_DIR="${ADDON_DIR:-/opt/paramount-stremio}"
-WATCH_FILE="${WATCH_FILE:-${ADDON_DIR}/vpn-data/gluetun.env}"
-SERVICE_NAME="gluetun-auto-restart"
+WATCH_FILE="${WATCH_FILE:-${ADDON_DIR}/vpn-data/sing-box/config.json}"
+SERVICE_NAME="sing-box-auto-restart"
+LEGACY_SERVICE_NAME="gluetun-auto-restart"
 
 if [ "${1:-}" = "--uninstall" ]; then
     echo "==> Disinstallazione watcher ${SERVICE_NAME}…"
@@ -29,9 +33,17 @@ if [ "${1:-}" = "--uninstall" ]; then
     exit 0
 fi
 
+# Disinstalla il vecchio watcher gluetun (legacy, non più usato).
+if systemctl list-unit-files 2>/dev/null | grep -q "${LEGACY_SERVICE_NAME}.path"; then
+    echo "==> Rimozione watcher legacy gluetun (${LEGACY_SERVICE_NAME})…"
+    systemctl disable --now "${LEGACY_SERVICE_NAME}.path" "${LEGACY_SERVICE_NAME}.service" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.path" "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+    systemctl daemon-reload
+fi
+
 # Verifica che la directory esista (verrà creata al primo salvataggio UI).
 # Deve appartenere a uid 1000 (utente `node` del container paramount):
-# l'addon scrive qui gluetun.env via il bind mount ./vpn-data:/app/.data/vpn.
+# l'addon scrive qui config.json via il bind mount ./vpn-data:/app/.data/vpn.
 NODE_UID="${NODE_UID:-1000}"
 WATCH_DIR="$(dirname "${WATCH_FILE}")"
 mkdir -p "${WATCH_DIR}"
@@ -47,9 +59,9 @@ if ! docker compose version >/dev/null 2>&1; then
     exit 1
 fi
 
-# Verifica che gluetun sia presente nella config compose.
-if ! grep -q "^  gluetun:" "${ADDON_DIR}/docker-compose.yml"; then
-    echo "❌ Servizio 'gluetun' non trovato in ${ADDON_DIR}/docker-compose.yml"
+# Verifica che sing-box sia presente nella config compose.
+if ! grep -q "^  sing-box:" "${ADDON_DIR}/docker-compose.yml"; then
+    echo "❌ Servizio 'sing-box' non trovato in ${ADDON_DIR}/docker-compose.yml"
     echo "   Aggiorna prima il repo (git pull)."
     exit 1
 fi
@@ -58,7 +70,7 @@ fi
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 cat > "${SERVICE_FILE}" <<EOF
 [Unit]
-Description=Restart gluetun container after VPN config change
+Description=Restart sing-box container after VPN config change
 After=docker.service
 Requires=docker.service
 
@@ -68,8 +80,8 @@ WorkingDirectory=${ADDON_DIR}
 # `up -d` crea il container se non esiste ancora (profilo vpn) e lo
 # ricrea se la config è cambiata. `restart` fallirebbe se il container
 # non è mai stato avviato.
-ExecStart=/usr/bin/docker compose --profile vpn up -d gluetun
-ExecStartPost=/usr/bin/bash ${ADDON_DIR}/scripts/restart-gluetun.sh
+ExecStart=/usr/bin/docker compose --profile vpn up -d sing-box
+ExecStartPost=/usr/bin/bash ${ADDON_DIR}/scripts/restart-sing-box.sh
 StandardOutput=journal
 StandardError=journal
 EOF
@@ -81,9 +93,9 @@ cat > "${PATH_FILE}" <<EOF
 Description=Watch ${WATCH_FILE} for changes (addon writes here from UI)
 
 [Path]
-# Trigger sia alla creazione (primo salvataggio credenziali) sia ad ogni
-# modifica successiva (cambio server/password). PathExists da solo scatta
-# solo alla creazione.
+# Trigger sia alla creazione (primo salvataggio config) sia ad ogni
+# modifica successiva (cambio server/subscription). PathExists da solo
+# scatta solo alla creazione.
 PathExists=${WATCH_FILE}
 PathModified=${WATCH_FILE}
 Unit=${SERVICE_NAME}.service
@@ -107,4 +119,4 @@ echo "Verifica:"
 echo "  systemctl status ${SERVICE_NAME}.path"
 echo ""
 echo "Adesso puoi cambiare VPN/proxy dall'UI /configure senza più SSH."
-echo "Disinstalla con: sudo bash scripts/install-gluetun-watcher.sh --uninstall"
+echo "Disinstalla con: sudo bash scripts/install-vpn-watcher.sh --uninstall"

@@ -224,6 +224,81 @@ const REPLAY_SECTION_ID_BY_SLUG: Record<string, number> = {
 
 const MATCH_REPLAYS_LIMIT = 50;
 
+/**
+ * Nomi visualizzati per slug competizione, usati per filtrare i replay VOD
+ * per `seriesTitle`. La sezione 292496 e' GLOBALE: contiene replay di tutte
+ * le competizioni, quindi dobbiamo selezionare solo quelli della lega
+ * richiesta (altrimenti ogni catalogo mostra gli stessi match).
+ */
+const LEAGUE_DISPLAY_NAME_BY_SLUG: Record<string, string[]> = {
+    "serie-a": ["Serie A"],
+    "uefa-champions-league": ["UEFA Champions League", "Champions League"],
+    "uefa-europa-league": ["UEFA Europa League", "Europa League"],
+    "uefa-conference-league": ["UEFA Conference League", "Conference League"],
+    "uefa-super-cup": ["UEFA Super Cup"],
+    "womens-champions-league": ["UEFA Women's Champions League", "Women's Champions League"],
+    "coppa-italia": ["Coppa Italia"],
+    "english-football-league": ["English Football League", "EFL"],
+    "efl-cup": ["EFL Cup", "Carabao Cup"],
+    "scottish-professional-football-league": ["Scottish Professional Football League", "SPFL"],
+    "liga-profesional-argentina": ["Liga Profesional Argentina"],
+    "brasileirao": ["Brasileirão", "Brasileirao"],
+    "nwsl": ["NWSL"],
+    "concacaf-champions-cup": ["Concacaf Champions Cup"],
+    "concacaf-nations-league": ["Concacaf Nations League"],
+    "afc-champions-league": ["AFC Champions League"],
+    "us-open-cup": ["US Open Cup"],
+    "nfl-on-cbs": ["NFL on CBS", "NFL"],
+    "college-football": ["College Football"],
+    "ncaa-mens-basketball": ["NCAA Men's Basketball"],
+    "wnba": ["WNBA"],
+    "ufc": ["UFC"],
+    "dana-white-contender-series": ["Dana White's Contender Series"],
+    "boxing": ["Boxing"],
+    "pga": ["PGA Tour", "PGA"],
+    "masters": ["Masters"],
+    "pbr-teams-series": ["PBR Teams Series"],
+    "sailgp": ["SailGP"],
+    "world-rugby": ["World Rugby"],
+};
+
+/** Normalizza un nome per il confronto (lowercase, senza accenti, spazi collassati). */
+function normalizeName(s: string): string {
+    return s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+}
+
+/**
+ * Ritorna true se il `seriesTitle` di un item VOD appartiene alla competizione
+ * richiesta (slug). Fallback: se lo slug non e' nella mappa, confronta con il
+ * nome della lega derivato dal canale live.
+ */
+function vodSeriesMatchesSlug(
+    seriesTitle: string | undefined,
+    slug: string,
+    leagueName?: string
+): boolean {
+    if (!seriesTitle) return false;
+    const t = normalizeName(seriesTitle);
+    if (!t) return false;
+
+    const candidates = [...(LEAGUE_DISPLAY_NAME_BY_SLUG[slug] ?? []), leagueName].filter(
+        (n): n is string => typeof n === "string" && n.length > 0
+    );
+    for (const c of candidates) {
+        const n = normalizeName(c);
+        if (!n) continue;
+        if (n === t) return true;
+        // Match parziale: "Serie A" vs "Serie A Enilive" / "Champions League" vs "UEFA Champions League".
+        if (n.length >= 4 && t.length >= 4 && (t.includes(n) || n.includes(t))) return true;
+    }
+    return false;
+}
+
 interface VodReplayItem {
     contentId?: string;
     title?: string;
@@ -357,7 +432,10 @@ export async function getLeagueEvents(
     }
 
     // Eventi VOD catch-up: status forzato a "replay".
+    // La sezione 292496 e' GLOBALE: filtriamo per `seriesTitle` in modo che
+    // ogni catalogo mostri solo i replay della propria competizione.
     for (const e of vodItems) {
+        if (!vodSeriesMatchesSlug(e.seriesTitle, slug, league?.name)) continue;
         const ev = normalizeVodReplayEvent(e, league);
         if (ev) events.push(ev);
     }

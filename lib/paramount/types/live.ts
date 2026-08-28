@@ -75,12 +75,13 @@ export async function getLiveListing(session: ParamountSession): Promise<LiveCha
         }
     }
 
-    const mpdEnabled = process.env.MPD_ENABLED === "true";
-    return listings.filter((l) => {
-        if (mpdEnabled) return true;
-        const isMpx = l?.channelTypes?.includes('vod_to_live');
-        return !isMpx;
-    });
+    // Mostriamo TUTTI i canali live. In passato i canali `vod_to_live` venivano
+    // nascosti perche' restituivano solo manifest MPD (DASH) non riproducibili
+    // da Stremio web/desktop. Ora pickManifestUrl() preferisce HLS (.m3u8)
+    // quando disponibile, quindi i canali vod_to_live tornano visibili: se il
+    // token contiene HLS il flusso e' riproducibile, altrimenti ricade su MPD
+    // (notWebReady, richiede player con Widevine CDM).
+    return listings;
 }
 
 export async function findLiveListing(session: ParamountSession, slug: string) {

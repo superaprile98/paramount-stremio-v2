@@ -55,7 +55,7 @@ Each section is browsable by genre:
 - **VOD content (movies and series) is protected by Widevine DRM** (Irdeto). The desktop Stremio player does **not** include a Widevine CDM, so VOD playback is only possible on players that ship a CDM (e.g. Stremio on Android TV, or external players with Widevine support).
 - The addon proxies the DASH/MPD manifest and the Widevine license endpoint (`/api/proxy/:sid/mpd`, `/api/proxy/:sid/license`) so that players with a CDM can play VOD content. It does **not** decrypt or bypass DRM in any way.
 - If your player has no CDM, VOD streams will stop after a few seconds (the license request fails). This is a player limitation, not an addon bug.
-- Live TV and sports use HLS and work on all players.
+- Live TV and sports use HLS when available and work on all players. The addon now **prefers HLS (`.m3u8`) over DASH (`.mpd`)** when the Irdeto token contains both, so replays and live channels that expose an HLS variant play everywhere. Only content that is exclusively DASH (some replays/VOD) falls back to the MPD proxy and needs a Widevine-capable player.
 
 ### Other known issues
 
@@ -217,13 +217,9 @@ You can configure or set the following environment variables in an `.env` file. 
 | `PORT`       | `7850`                                                       | NO       | The port of the addon.                                                                                               |
 | `KEY_SECRET` | `<random-key>`                                               | YES      | Randomly generated key to encrypt the login session. At least 20 characters recommended.                                 |
 | `TIMEZONE`   | `America/New_York`                                           | NO       | Time zone used to format dates.                                                                                          |
-| `PROXY_URLS` | `http://proxy1:8888,http://proxy2:8888`                      | NO       | Comma-separated list of HTTP/HTTPS/SOCKS5 proxies. The addon uses them in **round-robin** and **falls back automatically** when one returns `402` (bandwidth limit) or a connection error. If empty, falls back to `HTTP_PROXY`. |
+| `PROXY_URLS` | `http://sing-box:8888`                                       | NO       | Comma-separated list of HTTP/HTTPS/SOCKS5 proxies. The addon uses them in **round-robin** and **falls back automatically** when one returns `402` (bandwidth limit) or a connection error. With docker compose the default is `http://sing-box:8888` (the VLESS proxy container). If empty, falls back to `HTTP_PROXY`. |
 | `HTTP_PROXY` | `https://<username>:<password>@us8682.<vpn-provider>.com:89` | NO       | Single HTTP/HTTPS/SOCKS5 proxy (legacy). All HTTP calls from the addon will be made using this. Ignored if `PROXY_URLS` is set. |
-| `WIREGUARD_PRIVATE_KEY` | `<ProtonVPN WireGuard key>`                    | NO       | Private key for the bundled **gluetun** container (ProtonVPN WireGuard tunnel). When set, the addon automatically uses `http://gluetun:8888` as proxy (unless `PROXY_URLS` is set). See [ProtonVPN streaming setup](#-protonvpn-streaming-setup). |
-| `VPN_SERVER_COUNTRIES` | `United States`                                  | NO       | Country of the ProtonVPN server used by the gluetun container (default: `United States`, for Paramount+ US). |
-| `MFP_URL`    | `http://localhost:8888`                                      | NO       | URL of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                                    |
-| `MFP_PASS`   | `<your-password>`                                            | NO       | Password of your [MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) instance.                               |
-| `MFP_EXPIRATION` | `3600`                                                  | NO       | TTL (seconds) of the encrypted MediaFlow Proxy URLs generated via `/generate_url`.                                       |
+| `SUBSCRIPTION_USER_AGENT` | `sing-box/1.11.0`                              | NO       | User-Agent used when the addon downloads the VLESS subscription URL from `/configure`. Some providers require a specific one. |
 | `FORCE_HQ`   | `true`                                                       | NO       | When enabled, sorts HLS variants by bandwidth (highest first) in the rewritten master playlist.                          |
 | `STRIP_DISCONTINUITY` | `true`                                          | NO       | Removes `#EXT-X-DISCONTINUITY` tags from media playlists (workaround for players that freeze on commercials).           |
 | `PPLUS_UPSTREAM_ALLOWED_HOSTS` | `<comma-separated>`                     | NO       | Allowlist of upstream hosts the proxy may relay to (SSRF hardening). Defaults to the Paramount+ domains.                 |
@@ -255,34 +251,32 @@ curl -X POST -H 'Content-Type: application/json' \
      -d '{"action":"reprobe"}' https://addon.example.com/api/proxy/status
 ```
 
-### 🛡️ ProtonVPN streaming setup (recommended)
+### 🧩 VLESS / subscription proxy setup (recommended)
 
-Paramount+ US geo-blocks many VPN endpoints. The addon ships with an **OpenVPN** integration for `gluetun` that works with the credentials you already have on your ProtonVPN account — no WireGuard keys or `.conf` files to manage.
+Paramount+ US geo-blocks many VPN endpoints. The addon ships with a **sing-box** container that acts as a local HTTP proxy (`http://sing-box:8888`) and supports **VLESS, Hysteria2, VMess, Trojan and Shadowsocks** — the same share-link formats used by Hiddify, v2rayNG, sing-box, etc. No WireGuard keys or `.conf` files to manage: you just paste your **subscription URL**.
 
-1. Subscribe to **ProtonVPN Plus** (gives access to the full server list, not just the free tier).
-2. Open `https://account.protonvpn.com/account-password` (or the **Account** page on the Proton web app) and scroll to **OpenVPN / IKEv2 username** and **OpenVPN / IKEv2 password**. These are **separate** from your Proton account password — Proton generates them for legacy OpenVPN clients.
-3. Open the addon UI at `https://addon.example.com/configure` and go to the **🌐 VPN / Proxy** card → **🔐 Login Proton** tab.
-4. Enter the username and password, pick a country (start with **United States**), and click **Save**. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file and immediately reconfigures `gluetun`.
-5. Click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the tunnel and see the exit IP, country, city, and ISP. The result is one of: **✅ OK** / **⚠️ VPN detected** / **🌍 Geo-blocked (HTTP 451)** / **❌ Connection failed**.
+1. Get a subscription URL from your proxy provider (e.g. `https://provider.com/sub?token=...`). It returns the server list as base64-encoded share-links.
+2. Open the addon UI at `https://addon.example.com/configure` and go to the **🧩 VLESS / Subscription** card.
+3. Paste the subscription URL and click **🔍 Fetch servers** — the addon downloads it (directly, no proxy) and shows the parsed servers.
+4. Pick **Auto** (recommended: sing-box picks the fastest server via `urltest` failover) or a specific server, then click **💾 Save & connect**.
+5. The addon writes `vpn-data/sing-box/config.json`; the systemd path unit restarts the container automatically (2-5 s). Click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the tunnel and see the exit IP, country, city, and ISP. The result is one of: **✅ OK** / **⚠️ VPN detected** / **🌍 Geo-blocked (HTTP 451)** / **❌ Connection failed**.
 
-If the test reports **VPN detected** or **Geo-blocked**, switch to a different country from the dropdown (Netherlands, Switzerland, Sweden, Iceland, Romania) and retry — ProtonVPN rotates exit IPs frequently.
+If the test reports **VPN detected** or **Geo-blocked**, switch to a different server from the dropdown (or a different provider) and retry.
 
-For higher reliability, point the addon at **multiple VPN endpoints** with `PROXY_URLS=http://gluetun:8888,http://second-vpn:8888` (e.g. a second `gluetun` container pointing at a different ProtonVPN region).
+> **One-time SSH setup** (30 s): to make the new config take effect automatically without SSH every time, run once on the host:
+> ```bash
+> sudo bash scripts/install-vpn-watcher.sh
+> ```
+> This installs a systemd path unit that watches `vpn-data/sing-box/config.json` and runs `docker compose --profile vpn up -d sing-box` whenever the addon rewrites it (this also creates the container on first use). After this, save in the UI → 2-5 s later the tunnel is live. Uninstall with `sudo bash scripts/install-vpn-watcher.sh --uninstall`.
 
 ### 🖱️ One-click VPN setup from `/configure`
 
 If you don't want to SSH into the server every time, the configure UI exposes a card **🌐 VPN / Proxy** that lets you configure the tunnel without editing files. Two modes:
 
-1. **🔐 Login Proton** — enter your ProtonVPN **username** and **password** and pick a country. The addon writes an `OPENVPN_USER` / `OPENVPN_PASSWORD` env file consumed by `gluetun` (see `docker-compose.yml`). This is the simplest way and works with any ProtonVPN plan.
+1. **🧩 VLESS / Subscription** — paste any subscription URL (VLESS/Hysteria2/VMess/Trojan/SS share-links) or a single share-link. The addon parses it, writes the sing-box config and restarts the container. This is the recommended way.
 2. **🔌 HTTP proxy URL** — paste any HTTP/HTTPS/SOCKS5 proxy URL (with optional `user:pass@` credentials) without using a VPN tunnel at all.
 
 After saving, click **🧪 Test connection** to do a live probe against `https://www.paramountplus.com/` through the new tunnel and see the exit IP, country, city, and ISP. The result is "✅ OK" / "⚠️ VPN detected" / "🌍 Geo-blocked (HTTP 451)" / "❌ Connection failed".
-
-> **One-time SSH setup** (30 s): to make the new config take effect automatically without SSH every time, run once on the host:
-> ```bash
-> sudo bash scripts/install-gluetun-watcher.sh
-> ```
-> This installs a systemd path unit that watches `vpn-data/gluetun.env` and runs `docker compose --profile vpn up -d gluetun` whenever the addon rewrites it (this also creates the container on first use). After this, save in the UI → 2-5 s later the tunnel is live. Uninstall with `sudo bash scripts/install-gluetun-watcher.sh --uninstall`.
 
 ---
 
@@ -300,7 +294,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 | `/api/stremio/:key/manifest.json` | Stremio addon manifest (catalogs, resources, types) |
 | `/api/stremio/:key/catalog/:type/:id/...` | Stremio catalogs (live, sports, movies, series) |
 | `/api/stremio/:key/meta/:type/:id` | Stremio metadata for a single item |
-| `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS / DASH / MFP) |
+| `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS / DASH) |
 | `/api/stremio/:key/prefs` | Per-profile sports preferences (GET) and actions (POST: set, addTeam, removeTeam, hideLeague, showLeague) |
 | `/api/stremio/:key/proxy/hls` | Internal HLS proxy (rewrites master/media playlists) |
 | `/api/stremio/:key/proxy/seg` | Internal HLS segment proxy |
@@ -313,8 +307,9 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 | `/api/img` | Image proxy (posters, logos) |
 | `/api/proxy/status` | Multi-proxy health (GET = state, POST `{action:"reprobe"}` = force probe). |
 | `/api/vpn/status` | VPN/proxy config on disk + multi-proxy health. |
-| `/api/vpn/servers` | List of ProtonVPN countries supported by the OpenVPN flow. |
-| `/api/vpn/setup` | POST `{mode:"proton-login"|"proxy"|"clear", ...}` to switch VPN/proxy at runtime. |
+| `/api/vpn/servers` | List of servers parsed from the VLESS subscription (when active). |
+| `/api/vpn/preview` | POST `{subscriptionUrl}` → fetch + parse the subscription **without saving** (used by the "Fetch servers" button). |
+| `/api/vpn/setup` | POST `{mode:"vless"|"proxy"|"clear", ...}` to switch VPN/proxy at runtime. |
 | `/api/vpn/test` | GET = quick probe on the first alive proxy · POST `{proxyUrl?}` = test a specific proxy. |
 
 > `:key` is the addon session key (JWE-encrypted session). `:sid` is a short-lived cache id generated by the addon.
@@ -323,7 +318,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 
 ## 🧪 Testing
 
-The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection, the short-id cache, and the sports data model (team keys, team parsing, status derivation, league normalization, preferences filtering and priority ordering).
+The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection, the short-id cache, the sports data model (team keys, team parsing, status derivation, league normalization, preferences filtering and priority ordering), and the VLESS share-link parser + sing-box config builder.
 
 ```bash
 npm install

@@ -330,8 +330,16 @@ export function pickManifestUrl(tokenResp: any): string | null {
     walk(tokenResp);
 
     const merged = [...candidates.filter(Boolean) as string[], ...allStrings];
-    const m3u8 = merged.find((u) => typeof u === "string" && (u.includes(".m3u8") || u.includes(".mpd")));
+
+    // Prefer HLS (.m3u8) over DASH (.mpd): Stremio web/desktop non supporta
+    // DASH/MPD nativamente (solo HLS). Se il token contiene entrambi, scegliamo
+    // HLS così i replay diventano riproducibili ovunque. Se c'è solo MPD,
+    // ricadiamo su MPD (richiede player con Widevine CDM).
+    const m3u8 = merged.find((u) => typeof u === "string" && u.includes(".m3u8"));
     if (m3u8) return m3u8;
+
+    const mpd = merged.find((u) => typeof u === "string" && u.includes(".mpd"));
+    if (mpd) return mpd;
 
     const license = merged.find((u) => typeof u === "string" && u.includes("/widevine/getlicense"));
     if (license) return null;

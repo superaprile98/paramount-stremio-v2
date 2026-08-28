@@ -74,11 +74,9 @@ export async function credsExist(): Promise<boolean> {
 export const VPN_DATA_PATHS = {
     dir: VPN_DIR,
     credsFile: CREDS_FILE,
-    // Legacy: usato dalla vecchia modalità WireGuard (mantenuto per non rompere
-    // readCurrentConfig() su installazioni già esistenti).
-    wireguardConf: path.join(VPN_DIR, 'wireguard', 'proton.conf'),
-    // File env che docker-compose monta come env_file su gluetun (OpenVPN).
-    // Contiene OPENVPN_USER, OPENVPN_PASSWORD, VPN_SERVER_COUNTRIES.
-    // Permessi 0o600 e volume read-only sul container gluetun.
-    gluetunEnv: path.join(VPN_DIR, 'gluetun.env'),
+    // Config sing-box (VLESS/Hysteria2/VMess/Trojan/SS). Bind-mount sul
+    // container sing-box in /etc/sing-box/config.json. La systemd path unit
+    // (scripts/install-vpn-watcher.sh) osserva questo file e riavvia il
+    // container automaticamente ad ogni cambio.
+    singBoxConfig: path.join(VPN_DIR, 'sing-box', 'config.json'),
 };

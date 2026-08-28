@@ -1,34 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setProxyUrls, getProxyUrls } from '@/lib/http/client';
-import {
-    writeProtonLoginEnv,
-    clearConfig,
-    PROTON_COUNTRIES,
-} from '@/lib/vpn/gluetun';
 import { saveCreds } from '@/lib/vpn/storage';
+import {
+    fetchSubscription,
+    writeSingBoxConfig,
+    clearSingBoxConfig,
+} from '@/lib/vpn/singbox';
 
 /**
  * POST /api/vpn/setup
  *
  * Body: uno dei formati:
- *   { mode: 'proton-login', username: string, password: string, country?: string }
- *       → scrive env_file OpenVPN per gluetun e imposta PROXY_URLS = http://gluetun:8888
+ *   { mode: 'vless', subscriptionUrl: string, serverTag?: string }
+ *       → scarica la subscription, genera config.json per sing-box,
+ *         imposta PROXY_URLS = http://sing-box:8888
  *   { mode: 'proxy', url: string }
  *       → imposta un proxy HTTP esterno (no VPN tunnel)
  *   { mode: 'clear' }
  *       → rimuove la config VPN/proxy e resetta ai default
  *
+ * `proton-login` è DEPRECATO: risponde con errore "usa mode vless".
+ *
  * Effetti:
- *   - Scrive `vpn-data/gluetun.env` (se mode = proton-login) con creds OpenVPN
- *     Proton. Il file viene montato come env_file sul container gluetun.
- *   - Aggiorna process.env.PROXY_URLS con il proxy di gluetun (o il proxy
+ *   - Scrive `vpn-data/sing-box/config.json` (bind-mount sul container
+ *     sing-box). La systemd path unit (scripts/install-vpn-watcher.sh)
+ *     osserva il file e riavvia il container automaticamente.
+ *   - Aggiorna process.env.PROXY_URLS con il proxy di sing-box (o il proxy
  *     HTTP esterno) e ricostruisce lo stato del round-robin.
  *   - Salva le creds cifrate (AES-256-GCM via KEY_SECRET) per idempotenza.
- *
- * Auto-restart di gluetun: il file env è bind-mountato sull'host in
- * `vpn-data/gluetun.env`. Una systemd path unit (installata con
- * `scripts/install-gluetun-watcher.sh`) osserva quel file e riavvia
- * automaticamente gluetun ad ogni cambio. Niente SSH richiesto.
  */
 export async function POST(req: NextRequest) {
     let body: any;
@@ -44,8 +43,8 @@ export async function POST(req: NextRequest) {
 
     try {
         if (mode === 'clear') {
-            await clearConfig();
-            const defaults = process.env.HTTP_PROXY || 'http://gluetun:8888';
+            await clearSingBoxConfig();
+            const defaults = process.env.HTTP_PROXY || 'http://sing-box:8888';
             setProxyUrls([defaults]);
             await saveCreds({ mode: 'none', updatedAt: new Date().toISOString() });
             return NextResponse.json({
@@ -56,45 +55,51 @@ export async function POST(req: NextRequest) {
         }
 
         if (mode === 'proton-login') {
-            // Username e password inseriti dall'utente nella UI /configure.
-            const username = String(body.username || '').trim();
-            const password = String(body.password || '');
-            const countryRaw = String(body.country || 'US').trim().toUpperCase();
-            if (!username || !password) {
+            return NextResponse.json(
+                { ok: false, error: 'ProtonVPN deprecato: usa mode "vless" con la subscription URL' },
+                { status: 400 },
+            );
+        }
+
+        if (mode === 'vless') {
+            const subscriptionUrl = String(body.subscriptionUrl || '').trim();
+            if (!subscriptionUrl || !/^https?:\/\//i.test(subscriptionUrl)) {
                 return NextResponse.json(
-                    { ok: false, error: 'username e password sono obbligatori' },
+                    { ok: false, error: 'subscriptionUrl deve essere un URL http(s):// valido' },
                     { status: 400 },
                 );
             }
-            // Validazione country code contro la lista supportata da gluetun.
-            const country = PROTON_COUNTRIES.find(c => c.code === countryRaw)?.code || 'US';
-            const paths = await writeProtonLoginEnv({
-                kind: 'proton-login',
-                username,
-                password,
-                country,
-                updatedAt: new Date().toISOString(),
-            });
-            // Attiva il tunnel gluetun come proxy di uscita.
-            setProxyUrls(['http://gluetun:8888']);
+            const serverTag = String(body.serverTag || 'auto').trim() || 'auto';
+
+            // 1) Scarica + parsa la subscription (fetch diretto, no proxy).
+            const servers = await fetchSubscription(subscriptionUrl);
+
+            // 2) Genera config.json + cache servers.json.
+            const paths = await writeSingBoxConfig(servers, serverTag);
+
+            // 3) Attiva sing-box come proxy di uscita.
+            setProxyUrls(['http://sing-box:8888']);
+
+            // 4) Salva creds cifrate (metadata, mai i link in chiaro).
             await saveCreds({
-                mode: 'proton-login',
-                username,
-                country,
+                mode: 'vless',
+                subscriptionUrl,
+                serverTag,
+                serverCount: servers.length,
                 updatedAt: new Date().toISOString(),
             });
-            const maskedUser = username.length > 4 ? username.slice(0, 2) + '…' + username.slice(-2) : '***';
+
             return NextResponse.json({
                 ok: true,
-                message: `Credenziali Proton salvate (utente ${maskedUser}, paese ${country}). Gluetun si riavvierà automaticamente entro ~5s.`,
+                message: `Config sing-box salvata: ${servers.length} server, tag "${serverTag}". Il container si riavvierà automaticamente entro ~5s.`,
                 config: {
-                    kind: 'proton-login',
-                    usernameMasked: maskedUser,
-                    country,
+                    kind: 'vless',
+                    serverTag,
+                    serverCount: servers.length,
                     paths,
                 },
+                servers: servers.map(s => ({ tag: s.tag, protocol: s.protocol, host: s.host, port: s.port })),
                 proxyUrls: getProxyUrls(),
-                countries: PROTON_COUNTRIES,
             });
         }
 
@@ -107,7 +112,7 @@ export async function POST(req: NextRequest) {
                 );
             }
             // Rimuovi eventuale config VPN (vogliamo "solo proxy esterno").
-            await clearConfig();
+            await clearSingBoxConfig();
             setProxyUrls([url]);
             await saveCreds({
                 mode: 'proxy',
@@ -122,7 +127,7 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json(
-            { ok: false, error: `Unknown mode "${mode}". Expected: proton-login | proxy | clear` },
+            { ok: false, error: `Unknown mode "${mode}". Expected: vless | proxy | clear` },
             { status: 400 },
         );
     } catch (err: any) {
@@ -139,6 +144,5 @@ export async function GET() {
         proxyUrls: getProxyUrls(),
         envProxyUrls: process.env.PROXY_URLS || '',
         envHttpProxy: process.env.HTTP_PROXY || '',
-        countries: PROTON_COUNTRIES,
     });
 }

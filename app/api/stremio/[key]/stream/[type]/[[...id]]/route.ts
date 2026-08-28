@@ -13,7 +13,6 @@ import {
 import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
 import { resolveVodStream } from "@/lib/paramount/types/vod";
-import { wrapUrlWithMediaFlow } from "@/lib/mediaflowproxy/mediaflowproxy";
 import { shorten } from "@/lib/http/sid";
 import { httpClient } from "@/lib/http/client";
 import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls"
@@ -154,25 +153,6 @@ export async function GET(
                         }
                     }
                 }
-            }
-
-            if (process.env.MFP_URL) {
-                let external = await wrapUrlWithMediaFlow(streamingUrl, session, lsSession, true);
-                streams.push({
-                    name: "Paramount+",
-                    title: `${streamingTitle} \n🎞 MPEG-TS (MFP Proxy)`,
-                    url: external?.toString(),
-                    isLive: true,
-                    notWebReady: false
-                });
-                external = await wrapUrlWithMediaFlow(streamingUrl, session, lsSession, false);
-                streams.push({
-                    name: "Paramount+",
-                    title: `${streamingTitle} \n🎞 HLS (MFP Proxy)`,
-                    url: external?.toString(),
-                    isLive: true,
-                    notWebReady: false
-                });
             }
 
         } else if (streamingUrl.toString().includes('.mpd')) {

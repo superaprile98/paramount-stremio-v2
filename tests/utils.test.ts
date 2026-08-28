@@ -17,6 +17,31 @@ describe("utils: pickManifestUrl", () => {
         expect(pickManifestUrl(resp)).toBe("https://cdn.example.com/manifest.mpd");
     });
 
+    it("prefers HLS over MPD when both are present (Stremio web/desktop can't play DASH)", () => {
+        const resp = {
+            streamingUrl: "https://cdn.example.com/manifest.mpd",
+            hls: { url: "https://cdn.example.com/master.m3u8" },
+        };
+        expect(pickManifestUrl(resp)).toBe("https://cdn.example.com/master.m3u8");
+    });
+
+    it("prefers HLS even when MPD appears first in the walk order", () => {
+        const resp = {
+            data: {
+                playback: {
+                    url: "https://cdn.example.com/manifest.mpd",
+                    hls: "https://cdn.example.com/master.m3u8",
+                },
+            },
+        };
+        expect(pickManifestUrl(resp)).toBe("https://cdn.example.com/master.m3u8");
+    });
+
+    it("falls back to MPD when no HLS variant exists", () => {
+        const resp = { streamingUrl: "https://cdn.example.com/manifest.mpd" };
+        expect(pickManifestUrl(resp)).toBe("https://cdn.example.com/manifest.mpd");
+    });
+
     it("walks nested objects to find a manifest URL", () => {
         const resp = {
             data: {

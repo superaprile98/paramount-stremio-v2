@@ -316,25 +316,6 @@ export class ParamountClient {
         return master.id;
     }
 
-    async refreshCookies() {
-        if (!this.session) return this.session;
-        if (!this.session.profileId) this.session.profileId = await this.getMasterProfileId();
-
-        const path = `/v2.0/androidtv/user/account/profile/switch/${this.session.profileId}.json`;
-        const { cookies } = await this.postJson<any>(path);
-        if (cookies.length) {
-            this.session.cookies = cookies;
-            this.session.expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 365; //1 Year
-        }
-        await this.setSession(this.session);
-    }
-
-    async getAppConfig(): Promise<any> {
-        const path = `/v2.0/androidphone/app/status.json`;
-        const data = await this.getJson<any>(path);
-        return data?.appConfig;
-    }
-
     /** Stream Management **/
     async getIrdetoSessionToken(contentId: string): Promise<IrdetoSessionToken> {
         return await this.getJson<IrdetoSessionToken>(
@@ -440,40 +421,6 @@ export class ParamountClient {
         );
     }
 
-    async getLiveChannelListings(slug: string, params: Record<string, any> = {}): Promise<ListResponse<LiveChannelItem>> {
-        return await this.getJson<ListResponse<LiveChannelItem>>(
-            `/v3.0/androidphone/live/channels/${slug}/listings.json`,
-            {
-                rows: 125,
-                start: 0,
-                showListing: true,
-                ...params,
-            }
-        );
-    }
-
-    async getFeaturedHome(): Promise<any[]> {
-        return await this.getJson<any>("/v3.0/androidphone/home/configurator.json", {
-            minProximity: 1,
-            minCarouselItems: 1,
-            maxCarouselItems: 25,
-            rows: 50,
-        });
-    }
-
-    async getCarouselItems(carouselId: string, params: Record<string, any>): Promise<any[]> {
-        return this.getJson<any>(
-            `/v3.0/androidphone/home/configurator/carousels/${carouselId}/items.json`,
-            {
-                _clientRegion: "US",
-                platformType: "desktop",
-                start: 0,
-                rows: 200,
-                ...params,
-            }
-        );
-    }
-
     async getTrendingMovies(): Promise<ListResponse<VodItem>> {
         return await this.getJson<ListResponse<VodItem>>("/v3.0/androidphone/movies/trending.json");
     }
@@ -508,81 +455,6 @@ export class ParamountClient {
 
     async getShow(showId: string): Promise<ListResponse<VodItem>> {
         return await this.getJson<ListResponse<VodItem>>(`/v3.0/androidphone/shows/${showId}.json`);
-    }
-
-    async getShowsGroups(): Promise<any[]> {
-        return await this.getJson<any>("/v2.0/androidphone/shows/groups.json");
-    }
-
-    async getShowsGroup(groupId: string): Promise<any[]> {
-        return await this.getJson<any>(`/v2.0/androidphone/shows/group/${groupId}.json`, {
-            rows: 50,
-            begin: 0,
-        });
-    }
-
-    async getMoviesGroups(): Promise<any[]> {
-        return await this.getJson<any>("/v2.0/androidphone/movies/groups.json");
-    }
-
-    async getMoviesGroup(groupId: string): Promise<any[]> {
-        return this.getJson<any>(`/v2.0/androidphone/movies/group/${groupId}.json`, {
-            rows: 50,
-            begin: 0,
-        });
-    }
-
-    async getVideoSection(showId: string, config: string): Promise<any | null> {
-        const data = await this.getJson<any>(
-            `/v2.0/androidphone/shows/${showId}/videos/config/${config}.json`,
-            {
-                platformType: "apps",
-                rows: 1,
-                begin: 0,
-            }
-        );
-
-        if (!data?.videoSectionMetadata || !data?.numFound) return null;
-
-        const sections: any[] = data.videoSectionMetadata;
-        const full = sections.find((s) => s?.section_type === "Full Episodes");
-        return full ?? sections[sections.length - 1] ?? null;
-    }
-
-    async getSeasons(showId: string): Promise<number[]> {
-        const data = await this.getJson<any>(
-            `/v3.0/androidphone/shows/${showId}/video/season/availability.json`
-        );
-
-        const list = data?.video_available_season?.itemList ?? [];
-        const seasons = list
-            .map(function (x: any) {
-                const n = Number(x?.seasonNum ?? x?.season_number ?? x?.season ?? x);
-                return Number.isFinite(n) ? n : null;
-            })
-            .filter((n: number | null) => n !== null) as number[];
-
-        return seasons.length ? Array.from(new Set(seasons)).sort((a, b) => a - b) : [];
-    }
-
-    async getEpisodes(section: any, season?: number): Promise<any[]> {
-        const sectionId =
-            section?.section_id ?? section?.sectionId ?? section?.id ?? section?.sectionID;
-        if (!sectionId) return [];
-
-        const params: Record<string, any> = { rows: 999, begin: 0 };
-
-        if (season) {
-            params.params = `seasonNum=${season}`;
-            params.seasonNum = season;
-        }
-
-        const data = await this.getJson<any>(
-            `/v2.0/androidphone/videos/section/${sectionId}.json`,
-            params
-        );
-
-        return data?.sectionItems?.itemList ?? [];
     }
 }
 

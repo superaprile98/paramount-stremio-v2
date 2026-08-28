@@ -14,54 +14,42 @@
 #   docker compose up -d --build
 
 services:
-  # ── Tunnel VPN ProtonVPN (OpenVPN login) via gluetun ─────────────────────
+  # ── Proxy VLESS/Hysteria2/VMess/Trojan/SS via sing-box ────────────────────
   # OPZIONALE: si attiva con `docker compose --profile vpn up -d --build`.
   #
-  # Autenticazione con credenziali OpenVPN/IKEv2 di Proton (NON la password
-  # dell'account Proton). Si prendono da:
-  #   account.protonvpn.com → Account → OpenVPN/IKEv2 credentials
-  # (es. username "utente+pmp" con password dedicata).
+  # L'utente incolla una subscription URL (o un singolo share-link) nella UI
+  # /configure → /api/vpn/setup (mode vless). L'addon scarica la lista dei
+  # server, genera config.json e lo scrive in ./vpn-data/sing-box/config.json
+  # (bind-mount qui sotto). La systemd path unit
+  # (scripts/install-vpn-watcher.sh) osserva il file e riavvia il container
+  # automaticamente, niente SSH.
   #
-  # Le credenziali vengono scritte dall'addon in vpn-data/gluetun.env
-  # (via UI /configure → /api/vpn/setup) e montate come env_file qui sotto.
-  # NON servono chiavi WireGuard né SSH: la UI fa tutto.
-  #
-  # Espone un proxy HTTP locale (porta 8888) raggiungibile dal container
-  # paramount come http://gluetun:8888.
-  gluetun:
-    image: qmcgaw/gluetun:latest
-    container_name: gluetun
+  # sing-box espone un proxy HTTP locale (porta 8888) raggiungibile dal
+  # container paramount come http://sing-box:8888. La porta NON è esposta
+  # sull'host: il proxy è usato solo dal traffico del container paramount.
+  # Il failover tra più server è gestito internamente da sing-box (urltest).
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: sing-box
     restart: unless-stopped
     profiles:
       - vpn
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    # env_file scritto dall'addon (UI /configure) in ./vpn-data/gluetun.env
-    # (path HOST, relativo al compose file). Contiene OPENVPN_USER,
-    # OPENVPN_PASSWORD, SERVER_COUNTRIES. La systemd path unit
-    # (scripts/install-gluetun-watcher.sh) osserva le modifiche e riavvia
-    # gluetun automaticamente, niente SSH.
-    # NOTA: il file deve esistere prima di `up` (lo creano gli script
-    # install-gluetun-watcher.sh / restart-gluetun.sh / deploy-vpn-update.sh).
-    env_file:
-      - ./vpn-data/gluetun.env
+    # Nessuna capability speciale: sing-box fa solo proxy HTTP in uscita,
+    # niente TUN/NET_ADMIN (a differenza di gluetun).
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
-      - VPN_SERVICE_PROVIDER=protonvpn
-      - VPN_TYPE=openvpn
-      # Abilita il proxy HTTP locale (ascolta su 8888 di default).
-      # NOTA: la variabile di gluetun è HTTPPROXY (senza underscore),
-      # NON HTTP_PROXY (quella è la generica env var dei proxy e NON
-      # abilita il proxy server di gluetun).
-      - HTTPPROXY=on
-      # DNS: usa i DNS di ProtonVPN per evitare leak.
-      - DNS_ADDRESS=10.2.0.1
-    # NON esporre il proxy all'esterno: il container paramount lo raggiunge
-    # via rete interna. Se vuoi testarlo dall'host, aggiungi:
-    #   ports:
-    #     - "8888:8888"
-    #     - "8000:8000/tcp"   # control server (solo debug)
+      # Config generata dall'addon (UI /configure → /api/vpn/setup).
+      # Il file deve esistere prima di `up` (lo creano gli script
+      # install-vpn-watcher.sh / restart-sing-box.sh / deploy-vpn-update.sh).
+      - SING_BOX_CONFIG=/etc/sing-box/config.json
+    volumes:
+      # Bind-mount condiviso con l'addon: l'addon scrive qui config.json
+      # (via UI /configure → /api/vpn/setup). Stesso path sull'host →
+      # accessibile anche da scripts/restart-sing-box.sh.
+      - ./vpn-data/sing-box:/etc/sing-box
     networks:
       - default
     logging:
@@ -70,13 +58,12 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      # Il control server (8000) risponde 404 su /v1/health. Il vero health
-      # server di gluetun ascolta su 127.0.0.1:9999 (HEALTH_SERVER_ADDRESS)
-      # e risponde su /health.
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9999/health" ]
+      # sing-box non ha un health endpoint HTTP: verifichiamo che il processo
+      # sia vivo e che la porta 8888 sia in ascolto.
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:8888" ]
       interval: 30s
       timeout: 5s
-      start_period: 30s
+      start_period: 10s
       retries: 3
 
   paramount:
@@ -88,7 +75,7 @@ services:
     init: true
     restart: unless-stopped
     depends_on:
-      gluetun:
+      sing-box:
         condition: service_healthy
         required: false
     env_file:
@@ -102,11 +89,9 @@ services:
       - FORCE_HQ=${FORCE_HQ:-}
       # Proxy per le chiamate verso Paramount+.
       # - Se PROXY_URLS è valorizzato: lista comma-separated (round-robin + fallback).
-      # - Altrimenti: usa il tunnel ProtonVPN locale via gluetun.
-      - PROXY_URLS=${PROXY_URLS:-http://gluetun:8888}
+      # - Altrimenti: usa il proxy sing-box locale (VLESS/Hysteria2/...).
+      - PROXY_URLS=${PROXY_URLS:-http://sing-box:8888}
       - HTTP_PROXY=${HTTP_PROXY:-}
-      - MFP_URL=${MFP_URL:-}
-      - MFP_PASS=${MFP_PASS:-}
       # Persistenza prefs (squadre preferite, leghe nascoste) dentro il volume.
       - PREFS_DIR=/app/.data/prefs
     ports:
@@ -115,9 +100,9 @@ services:
       # Sessioni Paramount (cookies cifrati JWE) + prefs sportive.
       # Il volume named evita problemi di ownership (l'immagine gira come uid 1000).
       - paramount-data:/app/.data
-      # Bind-mount condiviso con gluetun: l'addon scrive qui il .conf WireGuard
-      # (via UI /configure → /api/vpn/setup). Stesso path sull'host → accessibile
-      # anche da scripts/restart-gluetun.sh.
+      # Bind-mount condiviso con sing-box: l'addon scrive qui config.json
+      # (via UI /configure → /api/vpn/setup). Stesso path sull'host →
+      # accessibile anche da scripts/restart-sing-box.sh.
       - ./vpn-data:/app/.data/vpn
     # Network esterne a cui il container deve collegarsi.
     # `server-stack_default` è la network di Nginx Proxy Manager (presente se

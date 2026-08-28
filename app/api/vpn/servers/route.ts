@@ -1,25 +1,31 @@
 import { NextResponse } from 'next/server';
-import { PROTON_COUNTRIES } from '@/lib/vpn/gluetun';
+import { readServersCache } from '@/lib/vpn/singbox';
 
 /**
  * GET /api/vpn/servers
- *   Ritorna la lista dei paesi (country code ISO) supportati da gluetun per
- *   la selezione server ProtonVPN nella UI /configure.
- *   Public endpoint (no auth) — sono solo label/country code.
- *
- *   In modalità login (OpenVPN) gluetun seleziona automaticamente il server
- *   migliore per il paese scelto, quindi qui ritorniamo solo i country code.
+ *   Ritorna la lista dei server disponibili:
+ *   - Se è attiva una config VLESS (sing-box): i server parsati dalla
+ *     subscription (cache servers.json), con tag/protocol/host/port.
+ *   - Altrimenti (legacy): i country code ISO supportati da gluetun per la
+ *     selezione server ProtonVPN.
+ *   Public endpoint (no auth) — sono solo label/country code / metadata.
  */
 export async function GET() {
+    const vless = await readServersCache();
+    if (vless && Array.isArray(vless.servers) && vless.servers.length > 0) {
+        return NextResponse.json({
+            ok: true,
+            kind: 'vless',
+            serverTag: vless.serverTag,
+            updatedAt: vless.updatedAt,
+            servers: vless.servers,
+            countries: [],
+        });
+    }
     return NextResponse.json({
         ok: true,
-        servers: PROTON_COUNTRIES.map(c => ({
-            code: c.code,
-            country: c.code,
-            city: c.label,
-            endpoint: c.label,
-            publicKey: '',
-        })),
-        countries: PROTON_COUNTRIES,
+        kind: 'none',
+        servers: [],
+        countries: [],
     });
 }
