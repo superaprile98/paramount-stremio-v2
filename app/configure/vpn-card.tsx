@@ -252,7 +252,7 @@ export function VpnSetupCard({
                         onChange={(e) => setSubscriptionUrl(e.target.value)}
                         placeholder="https://provider.com/sub?token=…  oppure  vless://…"
                         autoComplete="off" spellCheck={false}
-                        className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono outline-none focus:border-emerald-500"
+                        className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500"
                     />
 
                     <div className="flex gap-2">
@@ -271,7 +271,7 @@ export function VpnSetupCard({
                     {previewServers && previewServers.length > 0 && (
                         <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
                             <select value={serverTag} onChange={(e) => setServerTag(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs">
+                                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900">
                                 <option value="auto">⚡ Auto (failover automatico)</option>
                                 {previewServers.map((s) => (
                                     <option key={s.tag} value={s.tag}>

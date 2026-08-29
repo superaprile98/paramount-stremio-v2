@@ -318,7 +318,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                                 />
                                 <div className="relative">
                                     <input
@@ -329,7 +329,7 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                                     />
                                     <button
                                         type="button"
@@ -399,7 +399,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                                 />
                                 <div className="relative">
                                     <input
@@ -410,7 +410,7 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                                     />
                                     <button
                                         type="button"
@@ -463,71 +463,6 @@ export default function ConfigurePage() {
                     )}
                 </Card>
 
-                {/* ===== INSTALL TO STREMIO ===== */}
-                <Card
-                    title="Install to Stremio"
-                    subtitle={manifestUrl && vpnActive
-                        ? "One click to add the addon to your Stremio app."
-                        : "Complete Step 1 (Login) and Step 2 (VLESS) to enable installation."}
-                >
-                    {manifestUrl && vpnActive ? (
-                        <div className="space-y-3">
-                            {installUrl && (
-                                <div className="rounded-xl bg-gray-50 p-3">
-                                    <p className="text-xs text-gray-500 mb-1">Install URL</p>
-                                    <code className="text-sm text-gray-800 break-all font-mono">{installUrl}</code>
-                                </div>
-                            )}
-
-                            <div className="flex flex-wrap gap-2">
-                                <a
-                                    href={stremioInstallUrl || "#"}
-                                    onClick={(e) => !stremioInstallUrl && e.preventDefault()}
-                                    className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${stremioInstallUrl
-                                        ? "bg-black text-white hover:bg-black/85"
-                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                                >
-                                    ⚡ Install in Stremio
-                                </a>
-
-                                <button
-                                    onClick={onCopyInstallUrl}
-                                    disabled={!installUrl}
-                                    className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-200 disabled:opacity-50"
-                                >
-                                    Copy URL
-                                </button>
-                            </div>
-
-                            {manifestUrl && isLocalManifestUrl(manifestUrl) && !localBannerDismissed && (
-                                <LocalAddressBanner
-                                    manifestUrl={manifestUrl}
-                                    onDismiss={() => setLocalBannerDismissed(true)}
-                                />
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
-                                    {manifestUrl ? "✅" : "○"} Step 1 — Login Paramount+
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
-                                    {vpnActive ? "✅" : "○"} Step 2 — Connetti VLESS
-                                </span>
-                            </div>
-                            <button
-                                disabled
-                                className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2"
-                            >
-                                ⚡ Install in Stremio
-                            </button>
-                        </div>
-                    )}
-                </Card>
-
                 {/* ===== SPORTS PREFERENCES ===== */}
                 {key && (
                     <Card title="⚽ Sports — Your favorite teams" subtitle="Teams you pick will be highlighted at the top of every Sport catalog.">
@@ -538,7 +473,7 @@ export default function ConfigurePage() {
                                     onChange={(e) => setNewTeam(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && onAddTeam()}
                                     placeholder="Team name, e.g. Inter"
-                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500"
                                 />
                                 <button
                                     onClick={onAddTeam}
@@ -611,6 +546,71 @@ export default function ConfigurePage() {
                         </div>
                     </Card>
                 )}
+
+                {/* ===== INSTALL TO STREMIO ===== */}
+                <Card
+                    title="Install to Stremio"
+                    subtitle={manifestUrl && vpnActive
+                        ? "One click to add the addon to your Stremio app."
+                        : "Complete Step 1 (Login) and Step 2 (VLESS) to enable installation."}
+                >
+                    {manifestUrl && vpnActive ? (
+                        <div className="space-y-3">
+                            {installUrl && (
+                                <div className="rounded-xl bg-gray-50 p-3">
+                                    <p className="text-xs text-gray-500 mb-1">Install URL</p>
+                                    <code className="text-sm text-gray-800 break-all font-mono">{installUrl}</code>
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <a
+                                    href={stremioInstallUrl || "#"}
+                                    onClick={(e) => !stremioInstallUrl && e.preventDefault()}
+                                    className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${stremioInstallUrl
+                                        ? "bg-black text-white hover:bg-black/85"
+                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                                >
+                                    ⚡ Install in Stremio
+                                </a>
+
+                                <button
+                                    onClick={onCopyInstallUrl}
+                                    disabled={!installUrl}
+                                    className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-200 disabled:opacity-50"
+                                >
+                                    Copy URL
+                                </button>
+                            </div>
+
+                            {manifestUrl && isLocalManifestUrl(manifestUrl) && !localBannerDismissed && (
+                                <LocalAddressBanner
+                                    manifestUrl={manifestUrl}
+                                    onDismiss={() => setLocalBannerDismissed(true)}
+                                />
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-3 text-sm">
+                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
+                                    {manifestUrl ? "✅" : "○"} Step 1 — Login Paramount+
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm">
+                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
+                                    {vpnActive ? "✅" : "○"} Step 2 — Connetti VLESS
+                                </span>
+                            </div>
+                            <button
+                                disabled
+                                className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2"
+                            >
+                                ⚡ Install in Stremio
+                            </button>
+                        </div>
+                    )}
+                </Card>
 
                 {/* ===== TOAST ===== */}
                 {toast && <Toast msg={toast.msg} type={toast.type} />}
