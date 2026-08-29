@@ -204,9 +204,9 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         const xhttp = cfg.outbounds.find((o: any) => o.tag === "p-xhttp");
         expect(xhttp).toBeUndefined();
         expect(cfg.route.final).toBe("auto");
-        // route.default DEVE essere "auto" per evitare il fallback implicito a direct
-        // (senza VPN, tutto il traffico Paramount+ uscirebbe dall'IP del VPS).
-        expect(cfg.route.default).toBe("auto");
+        // route.default NON è supportato da sing-box < 1.11; usiamo solo route.final.
+        // Il fallback a direct è gestito da sing-box internamente quando urltest fallisce.
+        expect(cfg.route.default).toBeUndefined();
         // sing-box rifiuta `spider_x` come campo `reality.*` (è un campo Xray).
         // Se lo includiamo, sing-box esce con FATAL "unknown field" e l'addon
         // resta senza VPN. Il parser deve quindi scartarlo in fase di build.

@@ -128,14 +128,12 @@ export function buildSingBoxConfig(servers: ParsedServer[], serverTag: string = 
             },
             ...outbounds,
         ],
-        // `default` è l'outbound usato da route quando nessun match è soddisfatto.
-        // Senza default esplicito, sing-box usa `direct` come fallback implicito
+        // `final` è l'outbound usato per il traffico che non matcha nessuna rule.
+        // Senza `final` esplicito, sing-box usa `direct` come fallback implicito
         // e — se urltest fallisce — il traffico esce direttamente dal VPS senza VPN.
-        // Forziamo `default: "auto"` per garantire che TUTTO il traffiche passi
-        // attraverso il gruppo urltest (e quindi la VPN), anche in caso di errore.
+        // NOTA: `route.default` NON è supportato da sing-box < 1.11; usiamo solo `final`.
         route: {
             final: finalTag,
-            default: 'auto',
         },
     };
 }
