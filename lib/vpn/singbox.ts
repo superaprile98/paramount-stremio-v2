@@ -21,7 +21,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { VPN_DATA_PATHS } from './storage';
-import { ParsedServer, parseSubscriptionText } from './share-links';
+import { ParsedServer, parseSubscriptionText, parseXrayJson } from './share-links';
 
 const SING_BOX_DIR = path.dirname(VPN_DATA_PATHS.singBoxConfig);
 const SERVERS_CACHE = path.join(SING_BOX_DIR, 'servers.json');
@@ -44,8 +44,9 @@ export type VlessSetupConfig = {
  *   - subscription base64 (lista di share-link)
  *   - singolo share-link
  *   - testo già decodificato
+ *   - Xray/V2Ray JSON (array di config o config singolo con outbounds)
  *
- * NON supporta (v1): YAML/JSON Clash → errore chiaro.
+ * NON supporta: YAML/JSON Clash → errore chiaro.
  */
 export async function fetchSubscription(url: string): Promise<ParsedServer[]> {
     const ua = process.env.SUBSCRIPTION_USER_AGENT || DEFAULT_USER_AGENT;
@@ -62,15 +63,24 @@ export async function fetchSubscription(url: string): Promise<ParsedServer[]> {
     const text = await resp.text();
     if (!text.trim()) throw new Error('Subscription is empty');
 
-    // Rileva Clash YAML/JSON (non supportato in v1).
     const trimmed = text.trim();
-    if (trimmed.startsWith('proxies:') || trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        throw new Error('Clash YAML/JSON non ancora supportato: usa una subscription in formato base64/share-link');
+
+    // Xray/V2Ray JSON (es. subscription "app=happ"): array di config o
+    // config singolo con outbounds. Se il parse fallisce → errore chiaro.
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        const xrayServers = parseXrayJson(trimmed);
+        if (xrayServers && xrayServers.length > 0) {
+            return xrayServers;
+        }
+        if (trimmed.startsWith('proxies:')) {
+            throw new Error('Clash YAML non ancora supportato: usa una subscription in formato base64/share-link o Xray JSON');
+        }
+        throw new Error('JSON non riconosciuto: non è una config Xray/V2Ray valida (manca "outbounds")');
     }
 
     const servers = parseSubscriptionText(text);
     if (servers.length === 0) {
-        throw new Error('Nessun server valido trovato nella subscription (formati supportati: vless, hysteria2, vmess, trojan, ss)');
+        throw new Error('Nessun server valido trovato nella subscription (formati supportati: vless, hysteria2, vmess, trojan, ss, Xray JSON)');
     }
     return servers;
 }
@@ -106,6 +116,23 @@ export function buildSingBoxConfig(servers: ParsedServer[], serverTag: string = 
     };
 }
 
+function buildTls(s: ParsedServer): any {
+    const tls: any = {
+        enabled: true,
+        server_name: s.sni || s.host,
+        insecure: !!s.insecure,
+    };
+    if (s.realityPublicKey) {
+        tls.reality = {
+            enabled: true,
+            public_key: s.realityPublicKey,
+            short_id: s.realityShortId || '',
+        };
+        if (s.realitySpiderX) tls.reality.spider_x = s.realitySpiderX;
+    }
+    return tls;
+}
+
 function buildOutbound(s: ParsedServer, tag: string): any {
     const base: any = { tag };
     switch (s.protocol) {
@@ -116,12 +143,14 @@ function buildOutbound(s: ParsedServer, tag: string): any {
             base.uuid = s.uuid;
             if (s.flow) base.flow = s.flow;
             if (s.tls) {
-                base.tls = { enabled: true, server_name: s.sni || s.host, insecure: !!s.insecure };
+                base.tls = buildTls(s);
             }
             if (s.transport === 'ws') {
                 base.transport = { type: 'ws', path: s.wsPath || '/', headers: s.wsHost ? { Host: s.wsHost } : undefined };
             } else if (s.transport === 'grpc') {
                 base.transport = { type: 'grpc', service_name: s.grpcServiceName || '' };
+            } else if (s.transport === 'xhttp') {
+                base.transport = { type: 'xhttp', path: s.xhttpPath || '/', mode: s.xhttpMode || 'auto' };
             }
             break;
         }
@@ -140,12 +169,14 @@ function buildOutbound(s: ParsedServer, tag: string): any {
             base.uuid = s.uuid;
             if (s.method && s.method !== 'auto') base.alter_id = 0;
             if (s.tls) {
-                base.tls = { enabled: true, server_name: s.sni || s.host, insecure: !!s.insecure };
+                base.tls = buildTls(s);
             }
             if (s.transport === 'ws') {
                 base.transport = { type: 'ws', path: s.wsPath || '/', headers: s.wsHost ? { Host: s.wsHost } : undefined };
             } else if (s.transport === 'grpc') {
                 base.transport = { type: 'grpc', service_name: s.grpcServiceName || '' };
+            } else if (s.transport === 'xhttp') {
+                base.transport = { type: 'xhttp', path: s.xhttpPath || '/', mode: s.xhttpMode || 'auto' };
             }
             break;
         }
@@ -155,7 +186,7 @@ function buildOutbound(s: ParsedServer, tag: string): any {
             base.server_port = s.port;
             base.password = s.password;
             if (s.tls) {
-                base.tls = { enabled: true, server_name: s.sni || s.host, insecure: !!s.insecure };
+                base.tls = buildTls(s);
             }
             break;
         }

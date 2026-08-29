@@ -6,7 +6,7 @@ import {
     writeSingBoxConfig,
     clearSingBoxConfig,
 } from '@/lib/vpn/singbox';
-import { parseShareLink, type ParsedServer } from '@/lib/vpn/share-links';
+import { parseShareLink, parseConfigText, type ParsedServer } from '@/lib/vpn/share-links';
 
 /**
  * POST /api/vpn/setup
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         if (mode === 'vless') {
             const shareLink = String(body.shareLink || '').trim();
             const subscriptionUrl = String(body.subscriptionUrl || '').trim();
+            const rawConfig = String(body.rawConfig || '').trim();
             const serverTag = String(body.serverTag || 'auto').trim() || 'auto';
 
             let servers: ParsedServer[];
@@ -79,12 +80,21 @@ export async function POST(req: NextRequest) {
                     );
                 }
                 servers = [parsed];
+            } else if (rawConfig) {
+                // Config incollata direttamente (Xray/V2Ray JSON o share-link).
+                servers = parseConfigText(rawConfig);
+                if (servers.length === 0) {
+                    return NextResponse.json(
+                        { ok: false, error: 'Config non valida: nessun server riconosciuto (Xray JSON o share-link)' },
+                        { status: 400 },
+                    );
+                }
             } else if (subscriptionUrl && /^https?:\/\//i.test(subscriptionUrl)) {
                 // Subscription URL: scarica + parsa
                 servers = await fetchSubscription(subscriptionUrl);
             } else {
                 return NextResponse.json(
-                    { ok: false, error: 'Fornire subscriptionUrl (http(s)://) o shareLink (vless://, vmess://, ...)' },
+                    { ok: false, error: 'Fornire subscriptionUrl (http(s)://), shareLink (vless://, ...) o rawConfig (JSON Xray)' },
                     { status: 400 },
                 );
             }
@@ -98,7 +108,7 @@ export async function POST(req: NextRequest) {
             // 3) Salva creds cifrate (metadata, mai i link in chiaro).
             await saveCreds({
                 mode: 'vless',
-                subscriptionUrl: subscriptionUrl || shareLink,
+                subscriptionUrl: subscriptionUrl || shareLink || (rawConfig ? 'rawConfig' : ''),
                 serverTag,
                 serverCount: servers.length,
                 updatedAt: new Date().toISOString(),

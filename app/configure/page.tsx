@@ -302,7 +302,13 @@ export default function ConfigurePage() {
                     </div>
                 </div>
 
-                {/* ===== LOGIN CARD ===== */}
+                {/* ===== STEP 1: VPN / VLESS ===== */}
+                <VpnSetupCard
+                    onToast={(msg) => showToast(msg, msg.startsWith("✅") ? "success" : "error")}
+                    onVpnActiveChange={setVpnActive}
+                />
+
+                {/* ===== STEP 2: LOGIN CARD ===== */}
                 <Card
                     title={manifestUrl ? "✅ Logged in to Paramount+" : "Sign in to Paramount+"}
                     subtitle={!manifestUrl ? "Your credentials are sent server-side through the configured proxy and never stored." : undefined}
@@ -517,12 +523,6 @@ export default function ConfigurePage() {
                     </Card>
                 )}
 
-                {/* ===== VPN / PROXY ===== */}
-                <VpnSetupCard
-                    onToast={(msg) => showToast(msg, msg.startsWith("✅") ? "success" : "error")}
-                    onVpnActiveChange={setVpnActive}
-                />
-
                 {/* ===== LEAGUES ===== */}
                 {key && leagues.length > 0 && (
                     <Card title="Leagues — Hide what you don&rsquo;t want" subtitle="Hidden leagues won't appear in the &lsquo;Altro&rsquo; catalog.">
@@ -552,7 +552,7 @@ export default function ConfigurePage() {
                     title="Install to Stremio"
                     subtitle={manifestUrl && vpnActive
                         ? "One click to add the addon to your Stremio app."
-                        : "Complete Step 1 (Login) and Step 2 (VLESS) to enable installation."}
+                        : "Complete Step 1 (VLESS) and Step 2 (Login) to enable installation."}
                 >
                     {manifestUrl && vpnActive ? (
                         <div className="space-y-3">
@@ -593,13 +593,13 @@ export default function ConfigurePage() {
                     ) : (
                         <div className="space-y-2">
                             <div className="flex items-center gap-3 text-sm">
-                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
-                                    {manifestUrl ? "✅" : "○"} Step 1 — Login Paramount+
+                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
+                                    {vpnActive ? "✅" : "○"} Step 1 — Connetti VLESS
                                 </span>
                             </div>
                             <div className="flex items-center gap-3 text-sm">
-                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
-                                    {vpnActive ? "✅" : "○"} Step 2 — Connetti VLESS
+                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
+                                    {manifestUrl ? "✅" : "○"} Step 2 — Login Paramount+
                                 </span>
                             </div>
                             <button

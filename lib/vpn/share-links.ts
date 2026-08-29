@@ -32,10 +32,17 @@ export type ParsedServer = {
     sni?: string;
     insecure?: boolean;
     flow?: string;        // vless (es. xtls-rprx-vision)
-    transport?: 'tcp' | 'ws' | 'grpc';
+    transport?: 'tcp' | 'ws' | 'grpc' | 'xhttp';
     wsHost?: string;
     wsPath?: string;
     grpcServiceName?: string;
+    // Reality (Xray JSON): publicKey, shortId, spiderX
+    realityPublicKey?: string;
+    realityShortId?: string;
+    realitySpiderX?: string;
+    // xhttp (Xray JSON)
+    xhttpPath?: string;
+    xhttpMode?: string;
     raw?: string;         // link originale (per debug)
 };
 
@@ -243,6 +250,25 @@ export function parseShareLink(link: string): ParsedServer | null {
  *
  * Ritorna la lista dei server parsati (link non validi saltati).
  */
+/**
+ * Parsa un testo di configurazione che può essere:
+ *   - Xray/V2Ray JSON (config singola o array di config)
+ *   - subscription base64 / share-link / testo con più link
+ *
+ * Ritorna la lista dei server parsati ([] se nessuno valido).
+ */
+export function parseConfigText(text: string): ParsedServer[] {
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+
+    // Xray/V2Ray JSON prima (più specifico).
+    const xray = parseXrayJson(trimmed);
+    if (xray) return xray;
+
+    // Fallback: share-link / base64 / testo.
+    return parseSubscriptionText(trimmed);
+}
+
 export function parseSubscriptionText(text: string): ParsedServer[] {
     const trimmed = text.trim();
     if (!trimmed) return [];
@@ -269,4 +295,192 @@ export function parseSubscriptionText(text: string): ParsedServer[] {
         if (s) servers.push(s);
     }
     return servers;
+}
+
+/* ── Parser Xray / V2Ray JSON ─────────────────────────────────── */
+
+/**
+ * Converte un outbound Xray/V2Ray (formato JSON) in ParsedServer.
+ *
+ * Struttura Xray (es. subscription "app=happ"):
+ *   {
+ *     "protocol": "vless" | "vmess" | "trojan" | "shadowsocks",
+ *     "settings": { "vnext": [{ "address", "port", "users": [{ "id", "flow", "security" }] }],
+ *                   "servers": [{ "address", "port", "method", "password", "email" }] },
+ *     "streamSettings": {
+ *       "network": "tcp" | "ws" | "grpc" | "xhttp" | "h2",
+ *       "security": "tls" | "reality" | "none",
+ *       "tlsSettings": { "serverName", "allowInsecure", "fingerprint" },
+ *       "realitySettings": { "serverName", "publicKey", "shortId", "spiderX", "fingerprint" },
+ *       "wsSettings": { "path", "headers": { "Host" } },
+ *       "grpcSettings": { "serviceName", "multiMode" },
+ *       "xhttpSettings": { "path", "mode" }
+ *     }
+ *   }
+ *
+ * Ritorna null se l'outbound non è riconosciuto/valido.
+ */
+function parseXrayOutbound(ob: any): ParsedServer | null {
+    if (!ob || typeof ob !== 'object') return null;
+    const protocol = String(ob.protocol || '').toLowerCase();
+    const ss = ob.settings || {};
+    const stream = ob.streamSettings || {};
+
+    // Estrai host/porta/uuid/password in base al protocollo.
+    let host = '';
+    let port = 0;
+    let uuid: string | undefined;
+    let password: string | undefined;
+    let method: string | undefined;
+    let flow: string | undefined;
+
+    if (protocol === 'vless' || protocol === 'vmess') {
+        const vnext = Array.isArray(ss.vnext) ? ss.vnext[0] : null;
+        if (!vnext) return null;
+        host = String(vnext.address || '');
+        port = Number(vnext.port) || 0;
+        const user = Array.isArray(vnext.users) ? vnext.users[0] : null;
+        if (user) {
+            uuid = String(user.id || '');
+            flow = user.flow ? String(user.flow) : undefined;
+            if (protocol === 'vmess') method = String(user.security || 'auto');
+        }
+    } else if (protocol === 'trojan') {
+        const servers = Array.isArray(ss.servers) ? ss.servers[0] : null;
+        if (!servers) return null;
+        host = String(servers.address || '');
+        port = Number(servers.port) || 0;
+        password = String(servers.password || '');
+    } else if (protocol === 'shadowsocks') {
+        const servers = Array.isArray(ss.servers) ? ss.servers[0] : null;
+        if (!servers) return null;
+        host = String(servers.address || '');
+        port = Number(servers.port) || 0;
+        method = String(servers.method || '');
+        password = String(servers.password || '');
+    } else if (protocol === 'hysteria2') {
+        // hysteria2 non è un protocollo Xray nativo, ma molte subscription
+        // "app=happ" lo includono con settings.servers[0].auth.
+        const servers = Array.isArray(ss.servers) ? ss.servers[0] : null;
+        if (!servers) return null;
+        host = String(servers.address || '');
+        port = Number(servers.port) || 0;
+        password = String(servers.auth || servers.password || '');
+    } else {
+        return null;
+    }
+
+    if (!host || !port) return null;
+
+    // Security: tls / reality / none
+    const security = String(stream.security || 'none').toLowerCase();
+    const tls = security === 'tls' || security === 'reality';
+    const tlsSettings = stream.tlsSettings || {};
+    const realitySettings = stream.realitySettings || {};
+    const sni = String(
+        realitySettings.serverName || tlsSettings.serverName || stream.serverName || ''
+    ) || (tls ? host : undefined);
+    const insecure = !!(tlsSettings.allowInsecure || stream.allowInsecure);
+
+    // Network / transport
+    const network = String(stream.network || 'tcp').toLowerCase();
+    let transport: ParsedServer['transport'] = 'tcp';
+    let wsHost: string | undefined;
+    let wsPath: string | undefined;
+    let grpcServiceName: string | undefined;
+    let xhttpPath: string | undefined;
+    let xhttpMode: string | undefined;
+
+    if (network === 'ws') {
+        transport = 'ws';
+        const ws = stream.wsSettings || {};
+        wsPath = ws.path ? String(ws.path) : undefined;
+        wsHost = ws.headers?.Host ? String(ws.headers.Host) : undefined;
+    } else if (network === 'grpc') {
+        transport = 'grpc';
+        const grpc = stream.grpcSettings || {};
+        grpcServiceName = grpc.serviceName ? String(grpc.serviceName) : undefined;
+    } else if (network === 'xhttp') {
+        transport = 'xhttp';
+        const xhttp = stream.xhttpSettings || {};
+        xhttpPath = xhttp.path ? String(xhttp.path) : undefined;
+        xhttpMode = xhttp.mode ? String(xhttp.mode) : undefined;
+    }
+
+    const tag = String(ob.tag || ob.remarks || `${host}:${port}`);
+
+    return {
+        tag,
+        protocol: protocol === 'shadowsocks' ? 'ss' : (protocol as ParsedServer['protocol']),
+        host,
+        port,
+        uuid,
+        password,
+        method,
+        tls,
+        sni,
+        insecure,
+        flow,
+        transport,
+        wsHost,
+        wsPath,
+        grpcServiceName,
+        realityPublicKey: realitySettings.publicKey ? String(realitySettings.publicKey) : undefined,
+        realityShortId: realitySettings.shortId ? String(realitySettings.shortId) : undefined,
+        realitySpiderX: realitySettings.spiderX ? String(realitySettings.spiderX) : undefined,
+        xhttpPath,
+        xhttpMode,
+        raw: JSON.stringify(ob),
+    };
+}
+
+/**
+ * Rileva e parsa una subscription in formato Xray/V2Ray JSON.
+ *
+ * Formati accettati:
+ *   - array di config completi: [{ outbounds: [...] }, ...]
+ *   - oggetto config singolo:   { outbounds: [...] }
+ *   - array di outbounds:       [{ protocol, settings, streamSettings }, ...]
+ *
+ * Ritorna null se il testo non è JSON Xray (così il chiamante può
+ * provare altri formati).
+ */
+export function parseXrayJson(text: string): ParsedServer[] | null {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+
+    let data: any;
+    try {
+        data = JSON.parse(trimmed);
+    } catch {
+        return null;
+    }
+
+    // Raccogli tutti gli outbounds da qualsiasi forma.
+    const outbounds: any[] = [];
+    const collect = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) {
+            for (const item of node) collect(item);
+            return;
+        }
+        if (Array.isArray(node.outbounds)) {
+            for (const ob of node.outbounds) outbounds.push(ob);
+        }
+        // Ricorsione per array annidati di config.
+        for (const key of Object.keys(node)) {
+            if (key === 'outbounds') continue;
+            if (Array.isArray(node[key]) || (node[key] && typeof node[key] === 'object')) {
+                collect(node[key]);
+            }
+        }
+    };
+    collect(data);
+
+    const servers: ParsedServer[] = [];
+    for (const ob of outbounds) {
+        const s = parseXrayOutbound(ob);
+        if (s) servers.push(s);
+    }
+    return servers.length > 0 ? servers : null;
 }

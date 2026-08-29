@@ -72,7 +72,9 @@ export function VpnSetupCard({
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
     // VLESS / subscription
+    const [inputMode, setInputMode] = useState<"url" | "config">("url");
     const [subscriptionUrl, setSubscriptionUrl] = useState("");
+    const [rawConfig, setRawConfig] = useState("");
     const [previewServers, setPreviewServers] = useState<PreviewServer[] | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [serverTag, setServerTag] = useState("auto");
@@ -97,6 +99,27 @@ export function VpnSetupCard({
     /* ── VLESS / subscription ── */
 
     async function fetchServers() {
+        if (inputMode === "config") {
+            const cfg = rawConfig.trim();
+            if (!cfg) { onToast("Incolla la config (Xray JSON o share-link)"); return; }
+            setPreviewLoading(true);
+            setPreviewServers(null);
+            try {
+                const r = await fetch("/api/vpn/preview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ rawConfig: cfg }),
+                });
+                const j = await r.json();
+                if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+                setPreviewServers(j.servers);
+                setServerTag("auto");
+                onToast(`${j.count} server trovati`);
+            } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+            finally { setPreviewLoading(false); }
+            return;
+        }
+
         const url = subscriptionUrl.trim();
         if (!url) { onToast("Inserisci un URL subscription o uno share-link"); return; }
 
@@ -129,14 +152,23 @@ export function VpnSetupCard({
 
     async function submitVless() {
         const url = subscriptionUrl.trim();
-        if (!url) { onToast("Inserisci un URL subscription o uno share-link"); return; }
+        const cfg = rawConfig.trim();
+
+        if (inputMode === "config") {
+            if (!cfg) { onToast("Incolla la config (Xray JSON o share-link)"); return; }
+        } else if (!url) {
+            onToast("Inserisci un URL subscription o uno share-link");
+            return;
+        }
 
         setLoading(true);
         setTestResult(null);
         try {
             const body: Record<string, string> = { mode: "vless", serverTag };
 
-            if (isShareLink(url)) {
+            if (inputMode === "config") {
+                body.rawConfig = cfg;
+            } else if (isShareLink(url)) {
                 body.shareLink = url;
             } else {
                 if (!/^https?:\/\//i.test(url)) { onToast("L'URL deve iniziare con http:// o https://"); return; }
@@ -190,7 +222,7 @@ export function VpnSetupCard({
             const j = await r.json();
             if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
             onToast(`✅ ${j.message}`);
-            setSubscriptionUrl(""); setPreviewServers(null); setTestResult(null); setEditing(false);
+            setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null); setTestResult(null); setEditing(false);
             onVpnActiveChange(false);
             await refreshStatus();
         } finally { setLoading(false); }
@@ -212,8 +244,13 @@ export function VpnSetupCard({
                             onClick={() => {
                                 setEditing(true);
                                 setTestResult(null);
-                                if (status?.savedCreds?.subscriptionUrl) {
-                                    setSubscriptionUrl(status.savedCreds.subscriptionUrl);
+                                const saved = status?.savedCreds?.subscriptionUrl;
+                                if (saved && saved !== "rawConfig") {
+                                    setInputMode("url");
+                                    setSubscriptionUrl(saved);
+                                } else {
+                                    setInputMode("config");
+                                    setRawConfig("");
                                 }
                             }}
                             className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -243,17 +280,50 @@ export function VpnSetupCard({
                 /* Form */
                 <div className="space-y-2">
                     <p className="text-xs text-gray-500">
-                        Incolla un URL subscription o uno share-link diretto
-                        (VLESS, Hysteria2, VMess, Trojan, Shadowsocks).
+                        Collega la tua VPN: incolla un URL subscription, uno share-link
+                        diretto oppure la config completa (Xray JSON).
                     </p>
 
-                    <input
-                        value={subscriptionUrl}
-                        onChange={(e) => setSubscriptionUrl(e.target.value)}
-                        placeholder="https://provider.com/sub?token=…  oppure  vless://…"
-                        autoComplete="off" spellCheck={false}
-                        className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500"
-                    />
+                    {/* Toggle URL / Config */}
+                    <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+                        <button
+                            type="button"
+                            onClick={() => { setInputMode("url"); setPreviewServers(null); }}
+                            className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "url"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"}`}
+                        >
+                            🔗 URL subscription
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setInputMode("config"); setPreviewServers(null); }}
+                            className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "config"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"}`}
+                        >
+                            📋 Incolla config
+                        </button>
+                    </div>
+
+                    {inputMode === "url" ? (
+                        <input
+                            value={subscriptionUrl}
+                            onChange={(e) => setSubscriptionUrl(e.target.value)}
+                            placeholder="https://provider.com/sub?token=…  oppure  vless://…"
+                            autoComplete="off" spellCheck={false}
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500"
+                        />
+                    ) : (
+                        <textarea
+                            value={rawConfig}
+                            onChange={(e) => setRawConfig(e.target.value)}
+                            placeholder='Incolla qui la config completa (Xray/V2Ray JSON) o uno share-link…'
+                            rows={6}
+                            autoComplete="off" spellCheck={false}
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y"
+                        />
+                    )}
 
                     <div className="flex gap-2">
                         <button onClick={fetchServers} disabled={previewLoading || loading}
