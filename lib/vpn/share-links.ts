@@ -358,14 +358,22 @@ function parseXrayOutbound(ob: any): ParsedServer | null {
         port = Number(servers.port) || 0;
         method = String(servers.method || '');
         password = String(servers.password || '');
-    } else if (protocol === 'hysteria2') {
+    } else if (protocol === 'hysteria2' || protocol === 'hysteria') {
         // hysteria2 non è un protocollo Xray nativo, ma molte subscription
-        // "app=happ" lo includono con settings.servers[0].auth.
+        // "app=happ" lo includono. Due forme possibili:
+        //   A) settings.servers[0].auth  (sing-box style)
+        //   B) settings.address/port + streamSettings.hysteriaSettings.auth (Xray style)
         const servers = Array.isArray(ss.servers) ? ss.servers[0] : null;
-        if (!servers) return null;
-        host = String(servers.address || '');
-        port = Number(servers.port) || 0;
-        password = String(servers.auth || servers.password || '');
+        if (servers) {
+            host = String(servers.address || '');
+            port = Number(servers.port) || 0;
+            password = String(servers.auth || servers.password || '');
+        } else {
+            host = String(ss.address || '');
+            port = Number(ss.port) || 0;
+            const hy = stream.hysteriaSettings || {};
+            password = String(hy.auth || ss.auth || ss.password || '');
+        }
     } else {
         return null;
     }
@@ -411,7 +419,7 @@ function parseXrayOutbound(ob: any): ParsedServer | null {
 
     return {
         tag,
-        protocol: protocol === 'shadowsocks' ? 'ss' : (protocol as ParsedServer['protocol']),
+        protocol: protocol === 'shadowsocks' ? 'ss' : protocol === 'hysteria' ? 'hysteria2' : (protocol as ParsedServer['protocol']),
         host,
         port,
         uuid,

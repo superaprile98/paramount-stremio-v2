@@ -36,20 +36,17 @@ const sample = [
             },
             {
                 tag: "p-hysteria",
-                protocol: "hysteria2",
+                protocol: "hysteria",
                 settings: {
-                    servers: [
-                        {
-                            address: "ppq55com4rm4.minecraft.webcam",
-                            port: 443,
-                            auth: "13d84740-9824-4d17-a00e-765fb640a476",
-                        },
-                    ],
+                    address: "ppq55com4rm4.minecraft.webcam",
+                    port: 443,
+                    version: 2,
                 },
                 streamSettings: {
-                    network: "udp",
+                    network: "hysteria",
                     security: "tls",
-                    tlsSettings: { serverName: "www.bing.com", fingerprint: "chrome" },
+                    tlsSettings: { serverName: "www.bing.com", fingerprint: "firefox" },
+                    hysteriaSettings: { auth: "13d84740-9824-4d17-a00e-765fb640a476", version: 2 },
                 },
             },
             {
