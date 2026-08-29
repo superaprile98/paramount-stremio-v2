@@ -229,6 +229,10 @@ export async function readCurrentVlessConfig(): Promise<{
         const outbounds = Array.isArray(config?.outbounds) ? config.outbounds : [];
         const urltest = outbounds.find((o: any) => o.type === 'urltest');
         const serverCount = urltest?.outbounds?.length ?? 0;
+        // Config di default (solo outbound "direct", nessun server reale):
+        // non è una connessione VLESS attiva → ritorna null così la UI mostra
+        // il form di configurazione invece di "✅ Connesso".
+        if (serverCount === 0) return null;
         const finalTag = config?.route?.final ?? 'auto';
         const stat = await fs.stat(VPN_DATA_PATHS.singBoxConfig);
         return {
