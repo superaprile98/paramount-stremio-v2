@@ -87,7 +87,16 @@ export async function getCatalogMetas(args: {
 
         let events: SportEvent[] = [];
 
-        if (id === "pplus_sports_other") {
+        if (id === "pplus_sports_upcoming") {
+            // Slider "Sport" in home: prossimi eventi (upcoming) delle 4 leghe curate,
+            // ordinati per orario di inizio (il primo che parte viene mostrato per primo).
+            for (const leagueKey of CURATED_LEAGUE_KEYS) {
+                const leagueEvents = await getLeagueEvents(session, leagueKey, false);
+                events.push(...applyPrefs(leagueEvents, prefs));
+            }
+            events = events.filter((e) => e.status === "upcoming");
+            events.sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0));
+        } else if (id === "pplus_sports_other") {
             // "Altro": tutte le leghe tranne quelle curate.
             const leagues = await getSportLeagues(session);
 

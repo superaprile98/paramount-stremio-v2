@@ -124,6 +124,7 @@ const PPLUS_AUTH_HOSTS = [
 // anche se non ricevono le credenziali Paramount+ (es. Google DAI per i live con ad insertion)
 const PPLUS_UPSTREAM_ALLOWED_HOSTS = [
     ...PPLUS_AUTH_HOSTS,
+    "paramount.tech",
     "google.com",
     "googlevideo.com",
     "googleapis.com",

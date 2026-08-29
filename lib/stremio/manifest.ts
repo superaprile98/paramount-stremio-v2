@@ -9,10 +9,11 @@ import { CURATED_LEAGUE_KEYS } from "@/lib/paramount/catalogs";
  */
 export async function buildManifest(session: ParamountSession, baseUrl: string): Promise<object> {
     // Le 4 sezioni curate hanno un filtro genre fisso (Live/Upcoming/Replay).
+    // isRequired: true → il dropdown parte su "Live" invece di "none".
     const curatedExtra = [
         {
             name: "genre",
-            isRequired: false,
+            isRequired: true,
             options: ["Live", "Upcoming", "Replay"],
         },
         { name: "search" },
@@ -43,6 +44,15 @@ export async function buildManifest(session: ParamountSession, baseUrl: string):
     ];
 
     const catalogs: any[] = [
+        {
+            type: "sport",
+            id: "pplus_sports_upcoming",
+            name: "Sport",
+            extra: [
+                { name: "search" },
+                { name: "skip" },
+            ],
+        },
         {
             type: "sport",
             id: "pplus_sports_serie-a",

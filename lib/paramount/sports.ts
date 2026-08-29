@@ -440,8 +440,15 @@ export async function getLeagueEvents(
         if (ev) events.push(ev);
     }
 
-    // Ordina per inizio (più recenti prima).
-    events.sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0));
+    // Ordina: live prima, poi upcoming (più vicini prima), replay dal più recente al meno recente.
+    events.sort((a, b) => {
+        const order = (s?: string) => (s === "live" ? 0 : s === "upcoming" ? 1 : s === "replay" ? 2 : 3);
+        const oa = order(a.status);
+        const ob = order(b.status);
+        if (oa !== ob) return oa - ob;
+        if (a.status === "replay") return (b.startMs ?? 0) - (a.startMs ?? 0);
+        return (a.startMs ?? 0) - (b.startMs ?? 0);
+    });
 
     leagueListingsCache.set(cacheKey, { data: events, expiresAt: Date.now() + LEAGUE_LISTINGS_CACHE_TTL });
     return events;
