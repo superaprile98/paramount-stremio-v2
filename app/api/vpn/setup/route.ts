@@ -6,6 +6,7 @@ import {
     writeSingBoxConfig,
     clearSingBoxConfig,
 } from '@/lib/vpn/singbox';
+import { parseShareLink, type ParsedServer } from '@/lib/vpn/share-links';
 
 /**
  * POST /api/vpn/setup
@@ -62,28 +63,42 @@ export async function POST(req: NextRequest) {
         }
 
         if (mode === 'vless') {
+            const shareLink = String(body.shareLink || '').trim();
             const subscriptionUrl = String(body.subscriptionUrl || '').trim();
-            if (!subscriptionUrl || !/^https?:\/\//i.test(subscriptionUrl)) {
+            const serverTag = String(body.serverTag || 'auto').trim() || 'auto';
+
+            let servers: ParsedServer[];
+
+            if (shareLink) {
+                // Share-link diretto (vless://, vmess://, trojan://, ss://, hysteria2://)
+                const parsed = parseShareLink(shareLink);
+                if (!parsed) {
+                    return NextResponse.json(
+                        { ok: false, error: 'Share-link non valido o formato non supportato' },
+                        { status: 400 },
+                    );
+                }
+                servers = [parsed];
+            } else if (subscriptionUrl && /^https?:\/\//i.test(subscriptionUrl)) {
+                // Subscription URL: scarica + parsa
+                servers = await fetchSubscription(subscriptionUrl);
+            } else {
                 return NextResponse.json(
-                    { ok: false, error: 'subscriptionUrl deve essere un URL http(s):// valido' },
+                    { ok: false, error: 'Fornire subscriptionUrl (http(s)://) o shareLink (vless://, vmess://, ...)' },
                     { status: 400 },
                 );
             }
-            const serverTag = String(body.serverTag || 'auto').trim() || 'auto';
 
-            // 1) Scarica + parsa la subscription (fetch diretto, no proxy).
-            const servers = await fetchSubscription(subscriptionUrl);
-
-            // 2) Genera config.json + cache servers.json.
+            // 1) Genera config.json + cache servers.json.
             const paths = await writeSingBoxConfig(servers, serverTag);
 
-            // 3) Attiva sing-box come proxy di uscita.
+            // 2) Attiva sing-box come proxy di uscita.
             setProxyUrls(['http://sing-box:8888']);
 
-            // 4) Salva creds cifrate (metadata, mai i link in chiaro).
+            // 3) Salva creds cifrate (metadata, mai i link in chiaro).
             await saveCreds({
                 mode: 'vless',
-                subscriptionUrl,
+                subscriptionUrl: subscriptionUrl || shareLink,
                 serverTag,
                 serverCount: servers.length,
                 updatedAt: new Date().toISOString(),

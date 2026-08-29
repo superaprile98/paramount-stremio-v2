@@ -124,6 +124,7 @@ export default function ConfigurePage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [loginEditing, setLoginEditing] = useState(false);
 
     /* device code (alternative) */
     const [showDevice, setShowDevice] = useState(false);
@@ -134,6 +135,9 @@ export default function ConfigurePage() {
     const [prefs, setPrefs] = useState<{ favoriteTeams: { name: string; key: string }[]; hiddenLeagues: string[] } | null>(null);
     const [leagues, setLeagues] = useState<{ key: string; name: string }[]>([]);
     const [newTeam, setNewTeam] = useState("");
+
+    /* vpn state */
+    const [vpnActive, setVpnActive] = useState(false);
 
     /* ── helpers ── */
 
@@ -384,22 +388,89 @@ export default function ConfigurePage() {
                                 )}
                             </div>
                         </div>
+                    ) : loginEditing ? (
+                        /* Modifica login: mostra il form per cambiare credenziali */
+                        <div className="space-y-3">
+                            <div className="space-y-2">
+                                <input
+                                    type="email"
+                                    autoComplete="username"
+                                    placeholder="Email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    disabled={busy}
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                />
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        autoComplete="current-password"
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
+                                        disabled={busy}
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword((v) => !v)}
+                                        className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100"
+                                    >
+                                        {showPassword ? "Hide" : "Show"}
+                                    </button>
+                                </div>
+                            </div>
+                            {error && (
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                                    {error}
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={passwordLogin}
+                                    disabled={busy}
+                                    className="flex-1 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                                >
+                                    {busy ? <><Spinner /> Signing in...</> : "Update login"}
+                                </button>
+                                <button
+                                    onClick={() => { setLoginEditing(false); setError(null); setPassword(""); }}
+                                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
                     ) : (
                         <div className="space-y-2">
                             <p className="text-sm text-gray-600">You are signed in. Your session is valid for 1 year.</p>
-                            <button
-                                onClick={() => { resetAll(); setEmail(""); setPassword(""); setShowDevice(false); }}
-                                className="text-xs text-red-500 hover:text-red-700 underline"
-                            >
-                                Sign out
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => { setLoginEditing(true); setError(null); }}
+                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    ✏️ Modifica
+                                </button>
+                                <button
+                                    onClick={() => { resetAll(); setEmail(""); setPassword(""); setShowDevice(false); }}
+                                    className="text-xs text-red-500 hover:text-red-700 underline"
+                                >
+                                    Sign out
+                                </button>
+                            </div>
                         </div>
                     )}
                 </Card>
 
                 {/* ===== INSTALL TO STREMIO ===== */}
-                {manifestUrl && (
-                    <Card title="Install to Stremio" subtitle="One click to add the addon to your Stremio app.">
+                <Card
+                    title="Install to Stremio"
+                    subtitle={manifestUrl && vpnActive
+                        ? "One click to add the addon to your Stremio app."
+                        : "Complete Step 1 (Login) and Step 2 (VLESS) to enable installation."}
+                >
+                    {manifestUrl && vpnActive ? (
                         <div className="space-y-3">
                             {installUrl && (
                                 <div className="rounded-xl bg-gray-50 p-3">
@@ -435,8 +506,27 @@ export default function ConfigurePage() {
                                 />
                             )}
                         </div>
-                    </Card>
-                )}
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-3 text-sm">
+                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
+                                    {manifestUrl ? "✅" : "○"} Step 1 — Login Paramount+
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm">
+                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
+                                    {vpnActive ? "✅" : "○"} Step 2 — Connetti VLESS
+                                </span>
+                            </div>
+                            <button
+                                disabled
+                                className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2"
+                            >
+                                ⚡ Install in Stremio
+                            </button>
+                        </div>
+                    )}
+                </Card>
 
                 {/* ===== SPORTS PREFERENCES ===== */}
                 {key && (
@@ -493,7 +583,10 @@ export default function ConfigurePage() {
                 )}
 
                 {/* ===== VPN / PROXY ===== */}
-                <VpnSetupCard onToast={(msg) => showToast(msg, msg.startsWith("✅") ? "success" : "error")} />
+                <VpnSetupCard
+                    onToast={(msg) => showToast(msg, msg.startsWith("✅") ? "success" : "error")}
+                    onVpnActiveChange={setVpnActive}
+                />
 
                 {/* ===== LEAGUES ===== */}
                 {key && leagues.length > 0 && (
