@@ -190,6 +190,11 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         const auto = cfg.outbounds.find((o: any) => o.tag === "auto");
         expect(auto.type).toBe("urltest");
         expect(auto.outbounds).toEqual(["p-reality", "p-hysteria", "p-ws", "p-grpc", "p-xhttp"]);
+        // urltest deve avere url/interval/tolerance per il probing attivo:
+        // senza questi, sing-box usa "lazy mode" e cade su direct al primo errore.
+        expect(auto.url).toBe("http://www.gstatic.com/generate_204");
+        expect(auto.interval).toBe("3m");
+        expect(auto.tolerance).toBe(50);
         const reality = cfg.outbounds.find((o: any) => o.tag === "p-reality");
         expect(reality.tls.reality.enabled).toBe(true);
         expect(reality.tls.reality.public_key).toBe("9ngNG5S7MWDT7blqRQZix2-Ze24yRxj8nNNmEU8lTkg");
@@ -197,5 +202,8 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         expect(xhttp.transport.type).toBe("xhttp");
         expect(xhttp.transport.path).toBe("/xhttp");
         expect(cfg.route.final).toBe("auto");
+        // route.default DEVE essere "auto" per evitare il fallback implicito a direct
+        // (senza VPN, tutto il traffico Paramount+ uscirebbe dall'IP del VPS).
+        expect(cfg.route.default).toBe("auto");
     });
 });

@@ -109,10 +109,28 @@ export function buildSingBoxConfig(servers: ParsedServer[], serverTag: string = 
             { type: 'http', tag: 'http-in', listen: '0.0.0.0', listen_port: 8888 },
         ],
         outbounds: [
-            { type: 'urltest', tag: 'auto', outbounds: tags },
+            // urltest attivo: testa ogni outbound ogni `interval` verso `url` (HTTP 204
+            // è il probe standard). Senza `url`/`interval` sing-box usa la modalità
+            // "lazy" e fallisce al primo errore tornando al default (direct).
+            {
+                type: 'urltest',
+                tag: 'auto',
+                outbounds: tags,
+                url: 'http://www.gstatic.com/generate_204',
+                interval: '3m',
+                tolerance: 50,
+            },
             ...outbounds,
         ],
-        route: { final: finalTag },
+        // `default` è l'outbound usato da route quando nessun match è soddisfatto.
+        // Senza default esplicito, sing-box usa `direct` come fallback implicito
+        // e — se urltest fallisce — il traffico esce direttamente dal VPS senza VPN.
+        // Forziamo `default: "auto"` per garantire che TUTTO il traffiche passi
+        // attraverso il gruppo urltest (e quindi la VPN), anche in caso di errore.
+        route: {
+            final: finalTag,
+            default: 'auto',
+        },
     };
 }
 
