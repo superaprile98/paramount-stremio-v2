@@ -205,5 +205,12 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         // route.default DEVE essere "auto" per evitare il fallback implicito a direct
         // (senza VPN, tutto il traffico Paramount+ uscirebbe dall'IP del VPS).
         expect(cfg.route.default).toBe("auto");
+        // sing-box rifiuta `spider_x` come campo `reality.*` (è un campo Xray).
+        // Se lo includiamo, sing-box esce con FATAL "unknown field" e l'addon
+        // resta senza VPN. Il parser deve quindi scartarlo in fase di build.
+        const allRealityOutbounds = cfg.outbounds.filter((o: any) => o.tls?.reality);
+        for (const o of allRealityOutbounds) {
+            expect(o.tls.reality.spider_x).toBeUndefined();
+        }
     });
 });

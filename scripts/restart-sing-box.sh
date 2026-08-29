@@ -51,9 +51,17 @@ if [ ! -f vpn-data/sing-box/config.json ]; then
     echo '{"log":{"level":"info"},"inbounds":[{"type":"http","tag":"http-in","listen":"0.0.0.0","listen_port":8888}],"outbounds":[{"type":"direct","tag":"direct"}],"route":{"final":"direct"}}' > vpn-data/sing-box/config.json
     chown 1000:1000 vpn-data/sing-box/config.json 2>/dev/null || true
 fi
-# `up -d` crea il container se non esiste ancora e lo ricrea se la config
-# è cambiata. `restart` fallirebbe se il container non è mai stato avviato.
-docker compose --profile vpn up -d sing-box
+# `docker compose up -d` è un no-op quando il container esiste già e nulla è
+# cambiato (stessa immagine, stessa compose-config, stesse env): NON riavvia il
+# container per rileggere il bind-mount config.json aggiornato. Dobbiamo quindi
+# forzare il restart esplicito quando il container esiste, altrimenti sing-box
+# continua a girare con la vecchia config (problema critico: tutte le chiamate
+# passerebbero per direct senza VPN anche se abbiamo appena cambiato i server).
+if docker inspect sing-box >/dev/null 2>&1; then
+    docker restart sing-box
+else
+    docker compose --profile vpn up -d sing-box
+fi
 
 echo "==> Waiting for sing-box healthcheck (max 60s)…"
 for i in $(seq 1 30); do

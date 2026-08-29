@@ -141,12 +141,14 @@ function buildTls(s: ParsedServer): any {
         insecure: !!s.insecure,
     };
     if (s.realityPublicKey) {
+        // sing-box NON accetta `spider_x` dentro il blocco reality (è un campo Xray,
+        // non sing-box). Va omesso completamente per evitare FATAL "unknown field"
+        // al reload del config. In sing-box lo spider X è gestito diversamente.
         tls.reality = {
             enabled: true,
             public_key: s.realityPublicKey,
             short_id: s.realityShortId || '',
         };
-        if (s.realitySpiderX) tls.reality.spider_x = s.realitySpiderX;
     }
     return tls;
 }
