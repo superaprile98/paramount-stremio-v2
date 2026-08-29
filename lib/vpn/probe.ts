@@ -64,7 +64,11 @@ async function requestWithProxy(
         headers,
         timeout: timeoutMs,
         validateStatus: () => true,
-        maxRedirects: 0,
+        // Paramount+ homepage esegue un redirect 302 verso la variante regionale
+        // (es. www.it.paramountplus.com) -> se non seguiamo il redirect sing-box
+        // riceve 302 e il probe segnala fallimento anche se la VPN funziona.
+        // Seguiamo fino a 5 redirect e consideriamo ok qualunque 2xx/3xx finale.
+        maxRedirects: 5,
         responseType: 'text',
     };
     if (proxyUrl) {
@@ -78,7 +82,9 @@ async function requestWithProxy(
     const resp = await axios.get(url, config);
     return {
         status: resp.status,
-        ok: resp.status >= 200 && resp.status < 300,
+        // 2xx: ok. 3xx: Paramount+ usa redirect per la variante regionale, ed
+        // arrivarci tramite il proxy è comunque un segnale che la VPN funziona.
+        ok: resp.status >= 200 && resp.status < 400,
         text: typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data ?? ''),
         json: resp.data,
     };
