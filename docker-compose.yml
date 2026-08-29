@@ -61,9 +61,11 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      # sing-box non ha un health endpoint HTTP: verifichiamo che il processo
-      # sia vivo e che la porta 8888 sia in ascolto.
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:8888" ]
+      # sing-box non ha un health endpoint HTTP: `wget http://127.0.0.1:8888`
+      # NON funziona (il proxy HTTP chiude la connessione senza URL assoluto →
+      # healthcheck sempre "starting"). Usiamo `nc -z` per verificare solo che
+      # la porta 8888 sia in ascolto (TCP connect).
+      test: [ "CMD", "nc", "-z", "127.0.0.1", "8888" ]
       interval: 30s
       timeout: 5s
       start_period: 10s
