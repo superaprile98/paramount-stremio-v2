@@ -102,14 +102,10 @@ cat > "${PATH_FILE}" <<EOF
 Description=Watch ${WATCH_FILE} for changes (addon writes here from UI)
 
 [Path]
-# Trigger sia alla creazione (primo salvataggio config) sia ad ogni
-# modifica successiva (cambio server/subscription). PathExists da solo
-# scatta solo alla creazione.
-PathExists=${WATCH_FILE}
+# PathModified scatta quando il file viene modificato (cambio server/
+# subscription dalla UI). NON usiamo PathExists: scatta ogni volta che
+# la path unit viene ri-armata (il file esiste sempre) → loop infinito.
 PathModified=${WATCH_FILE}
-# Dopo un trigger, ignora eventi per 5 secondi. Senza questo, docker
-# compose up -d tocca il bind mount e ri-triggera il path all'infinito.
-TriggerLimitIntervalSec=5
 Unit=${SERVICE_NAME}.service
 
 [Install]
