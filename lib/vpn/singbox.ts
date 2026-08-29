@@ -96,6 +96,12 @@ export function buildSingBoxConfig(servers: ParsedServer[], serverTag: string = 
     const tags: string[] = [];
 
     for (const s of servers) {
+        // sing-box non supporta il transport "xhttp" (è un transport Xray).
+        // Lo saltiamo per evitare FATAL "unknown transport type: xhttp".
+        if (s.transport === 'xhttp') {
+            console.warn(`[singbox] skipping xhttp server ${s.host}:${s.port} (transport xhttp not supported by sing-box)`);
+            continue;
+        }
         const tag = s.tag || `${s.host}:${s.port}`;
         tags.push(tag);
         outbounds.push(buildOutbound(s, tag));

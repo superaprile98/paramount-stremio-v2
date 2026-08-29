@@ -183,13 +183,15 @@ describe("parseConfigText", () => {
 });
 
 describe("buildSingBoxConfig from Xray JSON", () => {
-    it("generates a valid sing-box config with urltest group and reality/xhttp outbounds", () => {
+    it("generates a valid sing-box config with urltest group and reality outbounds (xhttp filtered)", () => {
         const servers = parseXrayJson(json)!;
         const cfg: any = buildSingBoxConfig(servers, "auto");
-        expect(cfg.outbounds.length).toBe(6);
+        // 1 urltest + 4 outbounds (xhttp è filtrato perché non supportato da sing-box)
+        expect(cfg.outbounds.length).toBe(5);
         const auto = cfg.outbounds.find((o: any) => o.tag === "auto");
         expect(auto.type).toBe("urltest");
-        expect(auto.outbounds).toEqual(["p-reality", "p-hysteria", "p-ws", "p-grpc", "p-xhttp"]);
+        // xhttp deve essere escluso dalla lista urltest (sing-box non lo supporta)
+        expect(auto.outbounds).toEqual(["p-reality", "p-hysteria", "p-ws", "p-grpc"]);
         // urltest deve avere url/interval/tolerance per il probing attivo:
         // senza questi, sing-box usa "lazy mode" e cade su direct al primo errore.
         expect(auto.url).toBe("http://www.gstatic.com/generate_204");
@@ -198,9 +200,9 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         const reality = cfg.outbounds.find((o: any) => o.tag === "p-reality");
         expect(reality.tls.reality.enabled).toBe(true);
         expect(reality.tls.reality.public_key).toBe("9ngNG5S7MWDT7blqRQZix2-Ze24yRxj8nNNmEU8lTkg");
+        // xhttp deve essere assente (filtrato da buildSingBoxConfig)
         const xhttp = cfg.outbounds.find((o: any) => o.tag === "p-xhttp");
-        expect(xhttp.transport.type).toBe("xhttp");
-        expect(xhttp.transport.path).toBe("/xhttp");
+        expect(xhttp).toBeUndefined();
         expect(cfg.route.final).toBe("auto");
         // route.default DEVE essere "auto" per evitare il fallback implicito a direct
         // (senza VPN, tutto il traffico Paramount+ uscirebbe dall'IP del VPS).
