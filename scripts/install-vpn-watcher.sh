@@ -107,6 +107,9 @@ Description=Watch ${WATCH_FILE} for changes (addon writes here from UI)
 # scatta solo alla creazione.
 PathExists=${WATCH_FILE}
 PathModified=${WATCH_FILE}
+# Dopo un trigger, ignora eventi per 5 secondi. Senza questo, docker
+# compose up -d tocca il bind mount e ri-triggera il path all'infinito.
+TriggerLimitIntervalSec=5
 Unit=${SERVICE_NAME}.service
 
 [Install]
