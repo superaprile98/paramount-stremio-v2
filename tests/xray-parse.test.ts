@@ -213,6 +213,11 @@ describe("buildSingBoxConfig from Xray JSON", () => {
         const allRealityOutbounds = cfg.outbounds.filter((o: any) => o.tls?.reality);
         for (const o of allRealityOutbounds) {
             expect(o.tls.reality.spider_x).toBeUndefined();
+            // sing-box richiede uTLS abilitato per i client reality.
+            // Senza `utls.enabled`, sing-box esce con FATAL "uTLS is required by reality client".
+            expect(o.tls.utls).toBeDefined();
+            expect(o.tls.utls.enabled).toBe(true);
+            expect(o.tls.utls.fingerprint).toBe("chrome");
         }
     });
 });

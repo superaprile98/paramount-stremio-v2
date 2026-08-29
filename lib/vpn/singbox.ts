@@ -145,6 +145,12 @@ function buildTls(s: ParsedServer): any {
         insecure: !!s.insecure,
     };
     if (s.realityPublicKey) {
+        // sing-box richiede uTLS abilitato per i client reality.
+        // Senza `utls.enabled`, sing-box esce con FATAL "uTLS is required by reality client".
+        tls.utls = {
+            enabled: true,
+            fingerprint: 'chrome',
+        };
         // sing-box NON accetta `spider_x` dentro il blocco reality (è un campo Xray,
         // non sing-box). Va omesso completamente per evitare FATAL "unknown field"
         // al reload del config. In sing-box lo spider X è gestito diversamente.
