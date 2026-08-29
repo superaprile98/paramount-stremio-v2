@@ -67,18 +67,27 @@ if ! grep -q "^  sing-box:" "${ADDON_DIR}/docker-compose.yml"; then
 fi
 
 # Crea il file .service.
+# NOTA heredoc: usiamo <<EOF NON quotato perché ${ADDON_DIR} deve essere
+# espanso nel file systemd. I backtick nei commenti vanno ESCAPATI (\`)
+# altrimenti la shell esegue la command substitution ("up: command not
+# found" durante l'installazione).
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 cat > "${SERVICE_FILE}" <<EOF
 [Unit]
 Description=Restart sing-box container after VPN config change
 After=docker.service
 Requires=docker.service
+# Il servizio è oneshot e idempotente (docker compose up -d + attesa
+# healthcheck): disabilitiamo lo start-limit di default (5 start/10s).
+# Senza questo, un burst di eventi PathModified (es. salvataggi rapidi
+# dalla UI) porta a "start-limit-hit" e il watcher muore definitivamente.
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 WorkingDirectory=${ADDON_DIR}
-# `up -d` crea il container se non esiste ancora (profilo vpn) e lo
-# ricrea se la config è cambiata. `restart` fallirebbe se il container
+# \`up -d\` crea il container se non esiste ancora (profilo vpn) e lo
+# ricrea se la config è cambiata. \`restart\` fallirebbe se il container
 # non è mai stato avviato.
 ExecStart=/usr/bin/docker compose --profile vpn up -d sing-box
 ExecStartPost=/usr/bin/bash ${ADDON_DIR}/scripts/restart-sing-box.sh
