@@ -34,6 +34,9 @@ services:
     restart: unless-stopped
     profiles:
       - vpn
+    # L'immagine ufficiale ha ENTRYPOINT=[sing-box] e CMD vuoto: senza
+    # argomenti stampa l'help ed esce. Passiamo esplicitamente `run -c`.
+    command: [ "run", "-c", "/etc/sing-box/config.json" ]
     # Nessuna capability speciale: sing-box fa solo proxy HTTP in uscita,
     # niente TUN/NET_ADMIN (a differenza di gluetun).
     cap_drop:
