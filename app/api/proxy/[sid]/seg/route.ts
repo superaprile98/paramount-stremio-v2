@@ -25,9 +25,13 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ sid: string }> 
     const u = req.nextUrl.searchParams.get("u");
     if (!u) return new NextResponse("Missing u", { status: 400 });
 
+    // `s` contiene la parte di URL con i placeholder DASH GIÀ sostituiti dal
+    // player (es. "42.m4s"): va concatenata al prefisso in `u`.
+    const s = req.nextUrl.searchParams.get("s") ?? "";
+
     let upstreamUrl: URL;
     try {
-        upstreamUrl = new URL(Buffer.from(u, "base64url").toString("utf-8"));
+        upstreamUrl = new URL(Buffer.from(u, "base64url").toString("utf-8") + s);
     } catch {
         return new NextResponse("Bad upstream url", { status: 400 });
     }
