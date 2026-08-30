@@ -425,6 +425,18 @@ export async function getLeagueEvents(
         if (ev) events.push(ev);
     }
 
+    // Diagnostica: utile per capire perche' i cataloghi Live risultano vuoti
+    // (timestamp mancanti, isListingLive non flaggato, listing assenti...).
+    console.log(
+        `[sports] league=${slug} listings=${current.length} ` +
+        events
+            .map(
+                (e) =>
+                    `"${e.title}" status=${e.status} start=${e.startMs ?? "?"} end=${e.endMs ?? "?"}`
+            )
+            .join(" | ")
+    );
+
     // Eventi `previousListings` (raramente popolato, ma lo manteniamo per compatibilita').
     for (const e of previous) {
         const ev = normalizeSportEvent(e, league, { forceStatus: "replay" });
