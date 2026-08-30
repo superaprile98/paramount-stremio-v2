@@ -51,6 +51,9 @@ export function rewriteMpd(params: {
 
     let out = text;
 
+    // URL del proxy licenze, usato per iniettare <ms:laurl> nel ContentProtection
+    const licenseProxyUrl = `${baseOrigin}/api/proxy/${sid}/license`;
+
     // <BaseURL>...</BaseURL>
     out = out.replace(/<BaseURL>([^<]+)<\/BaseURL>/g, (_m, ref: string) => {
         return `<BaseURL>${toProxy(resolveRef(ref, upstreamUrl))}</BaseURL>`;
@@ -87,6 +90,18 @@ export function rewriteMpd(params: {
             return `${pre}${toProxy(resolveRef(ref, upstreamUrl), "license")}${post}`;
         }
     );
+
+    // Se c'è un ContentProtection Widevine ma nessun laurl esplicito,
+    // il player (ExoPlayer/Stremio desktop) proverebbe a contattare il
+    // license server dal PSSH (geo-bloccato). Iniettiamo un laurl che
+    // punta al proxy dell'addon.
+    const hasLaurl = /<(?:ms|dashif):laurl/.test(out);
+    if (!hasLaurl && out.includes('urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed')) {
+        out = out.replace(
+            /(<ContentProtection[^>]*urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed[^>]*>)/g,
+            `$1<ms:laurl xmlns:ms="urn:microsoft">${licenseProxyUrl}</ms:laurl>`
+        );
+    }
 
     return out;
 }
