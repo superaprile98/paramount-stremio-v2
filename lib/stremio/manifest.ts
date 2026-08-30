@@ -1,47 +1,33 @@
 import packageInfo from "@/package.json";
 import { ParamountSession, ParamountClient } from "@/lib/paramount/client";
 import { getSportLeagues } from "@/lib/paramount/sports";
-import { CURATED_LEAGUE_KEYS } from "@/lib/paramount/catalogs";
 
 /**
  * Costruisce il manifest Stremio per una session Paramount+ valida.
  * Riutilizzato da /api/stremio/[key]/manifest.json e /api/install/[token].
  *
- * Vista LIVE-ONLY: i replay Paramount+ sono DASH Widevine (DRM) e non sono
- * riproducibili su Stremio desktop (mpv) né in modo affidabile su web; live e
- * DVR "From Start" sono HLS AES-128 e funzionano su tutti i client.
+ * Vista sports-only con UNICO catalogo "Sport": un solo dropdown genre con
+ * tutte le leghe (Serie A, Champions, UFC, NFL, ...). Ogni categoria mostra
+ * prima gli eventi live e poi gli upcoming in ordine di orario. I replay
+ * Paramount+ sono DASH Widevine (DRM) e non riproducibili su Stremio, quindi
+ * restano esclusi; live e DVR "From Start" sono HLS AES-128 e funzionano
+ * su tutti i client.
  */
 export async function buildManifest(session: ParamountSession, baseUrl: string): Promise<object> {
-    // Le 4 sezioni curate hanno un filtro genre fisso ("Live").
-    // isRequired: true → il dropdown parte su "Live" invece di "none".
-    const curatedExtra = [
+    // Unico dropdown: "Tutte" (default) + tutte le leghe disponibili.
+    let leagueOptions: string[] = [];
+    try {
+        const leagues = await getSportLeagues(session);
+        leagueOptions = leagues.map((l) => l.name);
+    } catch {
+        // Se la chiamata fallisce, il dropdown resta con la sola opzione "Tutte".
+    }
+
+    const sportExtra = [
         {
             name: "genre",
             isRequired: true,
-            options: ["Live"],
-        },
-        { name: "search" },
-        { name: "skip" },
-    ];
-
-    // Sezione "Altro": il genre e' dinamico e contiene le leghe rimanenti
-    // (UFC, NFL on CBS, NBA, PGA, ecc.).
-    let otherGenreOptions: string[] = ["Live"];
-    try {
-        const leagues = await getSportLeagues(session);
-        const otherLeagueNames = leagues
-            .filter((l) => !CURATED_LEAGUE_KEYS.has(l.key))
-            .map((l) => l.name);
-        otherGenreOptions = [...otherGenreOptions, ...otherLeagueNames];
-    } catch {
-        // Se la chiamata fallisce, manteniamo solo il filtro di stato.
-    }
-
-    const otherExtra = [
-        {
-            name: "genre",
-            isRequired: false,
-            options: otherGenreOptions,
+            options: ["Tutte", ...leagueOptions],
         },
         { name: "search" },
         { name: "skip" },
@@ -50,42 +36,9 @@ export async function buildManifest(session: ParamountSession, baseUrl: string):
     const catalogs: any[] = [
         {
             type: "sport",
-            id: "pplus_sports_live",
-            name: "Live adesso",
-            extra: [
-                { name: "search" },
-                { name: "skip" },
-            ],
-        },
-        {
-            type: "sport",
-            id: "pplus_sports_serie-a",
-            name: "Serie A",
-            extra: curatedExtra,
-        },
-        {
-            type: "sport",
-            id: "pplus_sports_uefa-champions-league",
-            name: "UEFA Champions League",
-            extra: curatedExtra,
-        },
-        {
-            type: "sport",
-            id: "pplus_sports_uefa-europa-league",
-            name: "UEFA Europa League",
-            extra: curatedExtra,
-        },
-        {
-            type: "sport",
-            id: "pplus_sports_uefa-conference-league",
-            name: "UEFA Conference League",
-            extra: curatedExtra,
-        },
-        {
-            type: "sport",
-            id: "pplus_sports_other",
-            name: "Altro",
-            extra: otherExtra,
+            id: "pplus_sports",
+            name: "Sport",
+            extra: sportExtra,
         },
     ];
 
