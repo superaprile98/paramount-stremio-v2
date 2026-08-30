@@ -156,3 +156,20 @@ Prima: **tutti** gli stream (live, replay, VOD) avevano `isLive: true`. I player
 3. Push del commit locale `d1b6957` (main è ahead 1).
 4. Diagnosi Android.
 5. Decisione replay web (accettare limitazione o investire in transcodifica).
+## 2026-08-30 — Vista LIVE-ONLY (decisione finale sui replay)
+
+**Diagnosi DRM** (sessione di test Napoli–Como replay):
+- Replay/VOD Paramount+ = **solo DASH MPD con Widevine CENC** (`encv`/`pssh`/`tenc` verificati nell'init segment).
+- Stremio **desktop** usa mpv → nessun supporto Widevine → riproduce i segmenti cifrati grezzi (video illeggibile).
+- Stremio **web** (EME) → il flusso licenza via proxy non completa (nessuna richiesta `/license` arrivata o Irdeto rifiuta).
+- **Live + DVR "From Start" = HLS AES-128** → funziona su tutti i client (desktop, web, Android, TV).
+
+**Fix tecnici correlati** (commit `0ea8ecc`, `e0f237e`):
+- Iniezione `<ms:laurl>` nei ContentProtection Widevine dell'MPD.
+- XML-escape degli URL proxy iniettati: un `&` crudo rendeva l'MPD malformato (il player lo rifiutava in parsing senza mai chiedere licenza/segmenti).
+
+**Decisione**: rimossi Upcoming e Replay dai cataloghi; resta solo **Live**.
+- Slider home "Sport" → `pplus_sports_live` "Live adesso" (eventi live delle 4 leghe curate, ordinati per inizio).
+- Genre options dei cataloghi: solo `Live` (+ nomi leghe in "Altro").
+- `getLeagueEvents(..., includeReplays=false)` → niente chiamate VOD catch-up (più veloce).
+- Il codice replay in `sports.ts` resta (usato da `findSportEvent` per stream resolution) ma non è più esposto nei cataloghi.

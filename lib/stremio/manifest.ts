@@ -6,23 +6,27 @@ import { CURATED_LEAGUE_KEYS } from "@/lib/paramount/catalogs";
 /**
  * Costruisce il manifest Stremio per una session Paramount+ valida.
  * Riutilizzato da /api/stremio/[key]/manifest.json e /api/install/[token].
+ *
+ * Vista LIVE-ONLY: i replay Paramount+ sono DASH Widevine (DRM) e non sono
+ * riproducibili su Stremio desktop (mpv) né in modo affidabile su web; live e
+ * DVR "From Start" sono HLS AES-128 e funzionano su tutti i client.
  */
 export async function buildManifest(session: ParamountSession, baseUrl: string): Promise<object> {
-    // Le 4 sezioni curate hanno un filtro genre fisso (Live/Upcoming/Replay).
+    // Le 4 sezioni curate hanno un filtro genre fisso ("Live").
     // isRequired: true → il dropdown parte su "Live" invece di "none".
     const curatedExtra = [
         {
             name: "genre",
             isRequired: true,
-            options: ["Live", "Upcoming", "Replay"],
+            options: ["Live"],
         },
         { name: "search" },
         { name: "skip" },
     ];
 
     // Sezione "Altro": il genre e' dinamico e contiene le leghe rimanenti
-    // (UFC, NFL on CBS, NBA, PGA, ecc.) + i filtri di stato.
-    let otherGenreOptions: string[] = ["Live", "Upcoming", "Replay"];
+    // (UFC, NFL on CBS, NBA, PGA, ecc.).
+    let otherGenreOptions: string[] = ["Live"];
     try {
         const leagues = await getSportLeagues(session);
         const otherLeagueNames = leagues
@@ -30,7 +34,7 @@ export async function buildManifest(session: ParamountSession, baseUrl: string):
             .map((l) => l.name);
         otherGenreOptions = [...otherGenreOptions, ...otherLeagueNames];
     } catch {
-        // Se la chiamata fallisce, manteniamo solo i filtri di stato.
+        // Se la chiamata fallisce, manteniamo solo il filtro di stato.
     }
 
     const otherExtra = [
@@ -46,8 +50,8 @@ export async function buildManifest(session: ParamountSession, baseUrl: string):
     const catalogs: any[] = [
         {
             type: "sport",
-            id: "pplus_sports_upcoming",
-            name: "Sport",
+            id: "pplus_sports_live",
+            name: "Live adesso",
             extra: [
                 { name: "search" },
                 { name: "skip" },

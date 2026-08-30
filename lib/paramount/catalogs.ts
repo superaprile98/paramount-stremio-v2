@@ -33,9 +33,15 @@ function safeLower(s?: string) {
 }
 
 /**
- * Vista sports-only: 4 sezioni curate + 1 sezione "Altro".
+ * Vista sports-only LIVE-ONLY: 4 sezioni curate + 1 sezione "Altro".
+ *
+ * I replay Paramount+ sono DASH Widevine (DRM) e non riproducibili su Stremio
+ * desktop (mpv) né in modo affidabile su web; live e DVR "From Start" sono
+ * HLS AES-128 e funzionano su tutti i client. Per questo i cataloghi mostrano
+ * solo eventi con status "live" e non richiedono i replay VOD catch-up.
+ *
  * La sezione "Altro" accetta un filtro genre che puo' essere:
- *  - "Live" / "Upcoming" / "Replay" (filtro di stato)
+ *  - "Live" (filtro di stato)
  *  - il nome di una lega (es. "UFC", "NFL on CBS") → filtra per quella lega
  */
 export async function getCatalogMetas(args: {
@@ -87,14 +93,14 @@ export async function getCatalogMetas(args: {
 
         let events: SportEvent[] = [];
 
-        if (id === "pplus_sports_upcoming") {
-            // Slider "Sport" in home: prossimi eventi (upcoming) delle 4 leghe curate,
-            // ordinati per orario di inizio (il primo che parte viene mostrato per primo).
+        if (id === "pplus_sports_live") {
+            // Slider "Live adesso" in home: eventi in corso delle 4 leghe curate,
+            // ordinati per orario di inizio (il primo che e' partito viene mostrato per primo).
             for (const leagueKey of CURATED_LEAGUE_KEYS) {
                 const leagueEvents = await getLeagueEvents(session, leagueKey, false);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
-            events = events.filter((e) => e.status === "upcoming");
+            events = events.filter((e) => e.status === "live");
             events.sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0));
         } else if (id === "pplus_sports_other") {
             // "Altro": tutte le leghe tranne quelle curate.
@@ -102,26 +108,24 @@ export async function getCatalogMetas(args: {
 
             // Se il genre e' il nome di una lega, filtriamo per quella lega.
             // Altrimenti mostriamo tutte le leghe non curate.
-            const filterByLeagueName = genre && genre !== "Live" && genre !== "Upcoming" && genre !== "Replay";
+            const filterByLeagueName = genre && genre !== "Live";
             const targetLeagues = filterByLeagueName
                 ? leagues.filter((l) => l.name === genre && !CURATED_LEAGUE_KEYS.has(l.key))
                 : leagues.filter((l) => !CURATED_LEAGUE_KEYS.has(l.key));
 
             for (const league of targetLeagues) {
-                const leagueEvents = await getLeagueEvents(session, league.key, true);
+                const leagueEvents = await getLeagueEvents(session, league.key, false);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
         } else {
             // pplus_sports_<leagueKey>: una singola competizione (Serie A, UCL, UEL, UECL).
             const leagueKey = id.slice("pplus_sports_".length);
-            const leagueEvents = await getLeagueEvents(session, leagueKey, true);
+            const leagueEvents = await getLeagueEvents(session, leagueKey, false);
             events = applyPrefs(leagueEvents, prefs);
         }
 
-        // Filtro per stato (Live/Upcoming/Replay) se richiesto.
-        if (genre === "Live") events = events.filter((e) => e.status === "live");
-        else if (genre === "Upcoming") events = events.filter((e) => e.status === "upcoming");
-        else if (genre === "Replay") events = events.filter((e) => e.status === "replay");
+        // Vista live-only: mostriamo solo eventi in corso.
+        events = events.filter((e) => e.status === "live");
 
         const sportMetas = events.map(mapSportEventToMeta).filter(Boolean) as StremioMeta[];
 
