@@ -11,6 +11,7 @@ import {
     stripJsonSuffix
 } from "@/lib/paramount/utils";
 import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports";
+import type { SportEvent } from "@/lib/paramount/types/sport-models";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
 import { resolveVodStream } from "@/lib/paramount/types/vod";
 import { shorten } from "@/lib/http/sid";
@@ -56,15 +57,20 @@ export async function GET(
     const parsed = parsePplusId(decoded);
 
     let streamData = null;
+    let sportEvent: SportEvent | null = null;
     if (parsed.kind === "sport") {
-        const event = await findSportEvent(session, parsed.key);
-        streamData = event ? await resolveSportEventStream(session, event) : null;
+        sportEvent = await findSportEvent(session, parsed.key);
+        streamData = sportEvent ? await resolveSportEventStream(session, sportEvent) : null;
     } else if (parsed.kind === "live") {
         streamData = await resolveLiveStream(session, parsed.key);
     } else if (parsed.kind === "movie" || parsed.kind === "series") {
         streamData = await resolveVodStream(session, parsed.key);
     }
     if (!streamData) return NextResponse.json({ streams: [] }, { status: 200 });
+
+    // Un evento è "live" solo se è un canale live o uno sport in corso:
+    // replay e VOD con isLive:true causano loop/seek broken sui player.
+    const isLiveEvent = parsed.kind === "live" || (parsed.kind === "sport" && sportEvent?.status === "live");
 
     const lsUrl = streamData.lsUrl ?? "";
     const lsSession = streamData.lsSession;
@@ -100,9 +106,25 @@ export async function GET(
                 name: "Paramount+",
                 title: `${streamingTitle} \n🗣️ Auto \n🎞 HLS (Auto quality)`,
                 url: proxyBase.toString(),
-                isLive: true,
+                isLive: isLiveEvent,
                 notWebReady: false
             });
+
+            // DVR "from start" per eventi sportivi live: il CDN conserva tutti i
+            // segmenti numerati dell'evento, la route /proxy/dvr sintetizza una
+            // playlist EVENT completa (dal segmento 0 al live edge).
+            if (isLiveEvent && parsed.kind === "sport") {
+                const dvrUrl = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/dvr`);
+                dvrUrl.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString('base64url'));
+                dvrUrl.searchParams.set("t", Buffer.from(lsSession.toString()).toString('base64url'));
+                streams.push({
+                    name: "Paramount+",
+                    title: `${streamingTitle} \n⏪ From Start (DVR) \n🎞 HLS (Auto quality)`,
+                    url: dvrUrl.toString(),
+                    isLive: false,
+                    notWebReady: false
+                });
+            }
 
             headers['accept'] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
             const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers);
@@ -119,7 +141,7 @@ export async function GET(
                             name: "Paramount+",
                             title: `${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (Auto quality)`,
                             url: lUrl.toString(),
-                            isLive: true,
+                            isLive: isLiveEvent,
                             notWebReady: false
                         });
                     }
@@ -133,7 +155,7 @@ export async function GET(
                         name: "Paramount+",
                         title: `${streamingTitle} \n🗣️ Auto \n🎞 HLS (${variant.quality})`,
                         url: qUrl.toString(),
-                        isLive: true,
+                        isLive: isLiveEvent,
                         notWebReady: false
                     });
 
@@ -147,7 +169,7 @@ export async function GET(
                                 name: "Paramount+",
                                 title: `${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (${variant.quality})`,
                                 url: lUrl.toString(),
-                                isLive: true,
+                                isLive: isLiveEvent,
                                 notWebReady: false
                             });
                         }
@@ -166,7 +188,7 @@ export async function GET(
                     name: "Paramount+",
                     title: `${streamingTitle} \n🎞 MPD`,
                     url: internal.toString(),
-                    isLive: true,
+                    isLive: isLiveEvent,
                     notWebReady: true,
                     behaviorHints: {
                         configuration: {
