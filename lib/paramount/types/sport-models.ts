@@ -174,8 +174,14 @@ export function deriveStatus(
 ): SportEventStatus {
     if (isLive === true) return "live";
     if (startMs !== undefined && startMs > now) return "upcoming";
+    // In corso: finestra start..end nota e che contiene "now". Paramount a
+    // volte non flagga `isListingLive` per partite gia' iniziate: senza questa
+    // verifica l'evento finirebbe tra i replay e i cataloghi Live risultano vuoti.
+    if (startMs !== undefined && startMs <= now && endMs !== undefined && endMs > now) {
+        return "live";
+    }
     // Evento passato: se endMs noto ed e' nel passato, replay;
-    // altrimenti (endMs mancante o futuro) classifica come replay se
+    // altrimenti (endMs mancante) classifica come replay se
     // l'inizio e' nel passato (tipico dei listing in previousListings
     // senza timestamp di fine esplicito).
     if (endMs !== undefined && endMs < now) return "replay";

@@ -59,6 +59,14 @@ describe("sport-models: deriveStatus", () => {
         expect(deriveStatus(false, 2000, 3000, now)).toBe("upcoming");
     });
 
+    it("returns live when now is inside the start..end window even without isListingLive", () => {
+        // Bug fix: Paramount a volte non flagga isListingLive per partite in
+        // corso; senza questa regola l'evento finiva tra i replay e i cataloghi
+        // Live risultavano vuoti durante la partita.
+        expect(deriveStatus(false, 500, 3000, now)).toBe("live");
+        expect(deriveStatus(undefined, 500, 3000, now)).toBe("live");
+    });
+
     it("returns replay when end is in the past", () => {
         expect(deriveStatus(false, 0, 500, now)).toBe("replay");
     });
