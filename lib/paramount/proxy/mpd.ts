@@ -7,7 +7,34 @@
  *  - <SegmentTemplate media=... initialization=...>
  *  - <SegmentList><SegmentURL media=...>
  *  - <ms:laurl> / <dashif:laurl> (URL licenza Widevine)
+ *
+ * Tutti gli URL iniettati vengono escapati come entità XML: un `&` crudo
+ * dentro un attributo renderebbe l'MPD malformato e il player lo rifiuterebbe
+ * in fase di parsing (nessuna richiesta di licenza/segmenti successiva).
  */
+
+// "&" costruito a runtime: evita che il tool di editing interpreti le entità
+// XML presenti nel sorgente.
+const AMP = String.fromCharCode(38);
+
+/** Decodifica le entità XML lette da attributi/elementi del manifest. */
+function xmlUnescape(s: string): string {
+    return s
+        .replace(new RegExp(AMP + "amp;", "g"), AMP)
+        .replace(new RegExp(AMP + "lt;", "g"), "<")
+        .replace(new RegExp(AMP + "gt;", "g"), ">")
+        .replace(new RegExp(AMP + "quot;", "g"), '"')
+        .replace(new RegExp(AMP + "apos;", "g"), "'");
+}
+
+/** Codifica un URL per essere inserito in un attributo/elemento XML. */
+function xmlEscape(s: string): string {
+    return s
+        .replace(/&/g, AMP + "amp;")
+        .replace(/</g, AMP + "lt;")
+        .replace(/>/g, AMP + "gt;")
+        .replace(/"/g, AMP + "quot;");
+}
 
 function resolveRef(ref: string, upstreamUrl: URL): string {
     const trimmed = ref.trim();
@@ -49,6 +76,11 @@ export function rewriteMpd(params: {
         return u.toString();
     };
 
+    // Riscrive un URL letto dal manifest (attributo o testo elemento) nel
+    // corrispondente URL del proxy, con escape XML corretto.
+    const rewriteUrl = (raw: string, route: "seg" | "license" = "seg") =>
+        xmlEscape(toProxy(resolveRef(xmlUnescape(raw), upstreamUrl), route));
+
     let out = text;
 
     // URL del proxy licenze, usato per iniettare <ms:laurl> nel ContentProtection
@@ -56,14 +88,14 @@ export function rewriteMpd(params: {
 
     // <BaseURL>...</BaseURL>
     out = out.replace(/<BaseURL>([^<]+)<\/BaseURL>/g, (_m, ref: string) => {
-        return `<BaseURL>${toProxy(resolveRef(ref, upstreamUrl))}</BaseURL>`;
+        return `<BaseURL>${rewriteUrl(ref)}</BaseURL>`;
     });
 
     // <SegmentTemplate ... media="..." ...>
     out = out.replace(
         /(<SegmentTemplate[^>]*\bmedia=")([^"]+)(")/g,
         (_m, pre: string, ref: string, post: string) => {
-            return `${pre}${toProxy(resolveRef(ref, upstreamUrl))}${post}`;
+            return `${pre}${rewriteUrl(ref)}${post}`;
         }
     );
 
@@ -71,7 +103,7 @@ export function rewriteMpd(params: {
     out = out.replace(
         /(<SegmentTemplate[^>]*\binitialization=")([^"]+)(")/g,
         (_m, pre: string, ref: string, post: string) => {
-            return `${pre}${toProxy(resolveRef(ref, upstreamUrl))}${post}`;
+            return `${pre}${rewriteUrl(ref)}${post}`;
         }
     );
 
@@ -79,7 +111,7 @@ export function rewriteMpd(params: {
     out = out.replace(
         /(<SegmentURL[^>]*\bmedia=")([^"]+)(")/g,
         (_m, pre: string, ref: string, post: string) => {
-            return `${pre}${toProxy(resolveRef(ref, upstreamUrl))}${post}`;
+            return `${pre}${rewriteUrl(ref)}${post}`;
         }
     );
 
@@ -87,7 +119,7 @@ export function rewriteMpd(params: {
     out = out.replace(
         /(<(?:ms|dashif):laurl[^>]*>)([^<]+)(<\/)/g,
         (_m, pre: string, ref: string, post: string) => {
-            return `${pre}${toProxy(resolveRef(ref, upstreamUrl), "license")}${post}`;
+            return `${pre}${rewriteUrl(ref, "license")}${post}`;
         }
     );
 
@@ -99,7 +131,7 @@ export function rewriteMpd(params: {
     if (!hasLaurl && out.includes('urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed')) {
         out = out.replace(
             /(<ContentProtection[^>]*urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed[^>]*>)/g,
-            `$1<ms:laurl xmlns:ms="urn:microsoft">${licenseProxyUrl}</ms:laurl>`
+            `$1<ms:laurl xmlns:ms="urn:microsoft">${xmlEscape(licenseProxyUrl)}</ms:laurl>`
         );
     }
 

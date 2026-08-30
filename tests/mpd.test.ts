@@ -22,68 +22,102 @@ const REAL_MPD = `<?xml version="1.0" encoding="utf-8"?>
 
 const UPSTREAM = new URL("https://vod.pplus.paramount.tech/intl_vms/2026/08/05/ALVE01KZ/4492635_cenc_precon_dash/ITSA_Match_Replay_720p/manifest.mpd");
 
+// decodifica le entità XML dagli attributi prima del parsing URL
+const AMP = String.fromCharCode(38);
+const xmlUnescape = (s: string) => s.split(AMP + "amp;").join(AMP);
+
 describe("rewriteMpd — placeholder DASH", () => {
-    const rewritten = rewriteMpd({
-        text: REAL_MPD,
-        upstreamUrl: UPSTREAM,
-        baseOrigin: "https://para.example.com",
-        sid: "TESTSID1234567890",
-    });
+  const rewritten = rewriteMpd({
+    text: REAL_MPD,
+    upstreamUrl: UPSTREAM,
+    baseOrigin: "https://para.example.com",
+    sid: "TESTSID1234567890",
+  });
 
-    it("lascia i placeholder leggibili nell'URL del proxy (fuori dal base64)", () => {
-        // i template ($Number$/$RepresentationID$) restano letterali; il
-        // prefisso ("seg_", "init_", ...) è invece nel base64 di `u`
-        expect(rewritten).toContain("$Number$.m4s");
-        expect(rewritten).toContain("$RepresentationID$.m4s");
-        // il placeholder NON deve essere percent-encoded
-        expect(rewritten).not.toContain("%24Number%24");
-        expect(rewritten).not.toContain("%24RepresentationID%24");
-    });
+  it("lascia i placeholder leggibili nell'URL del proxy (fuori dal base64)", () => {
+    // i template ($Number$/$RepresentationID$) restano letterali; il
+    // prefisso ("seg_", "init_", ...) è invece nel base64 di `u`
+    expect(rewritten).toContain("$Number$.m4s");
+    expect(rewritten).toContain("$RepresentationID$.m4s");
+    // il placeholder NON deve essere percent-encoded
+    expect(rewritten).not.toContain("%24Number%24");
+    expect(rewritten).not.toContain("%24RepresentationID%24");
+  });
 
-    it("codifica il prefisso in `u` e il template in `s`", () => {
-        // media del primo AdaptationSet (video): .../seg_$Number$.m4s
-        const m = rewritten.match(/<SegmentTemplate[^>]*\bmedia="([^"]+)"/);
-        expect(m).toBeTruthy();
-        const url = new URL(m![1]);
-        expect(url.pathname).toBe("/api/proxy/TESTSID1234567890/seg");
-        const u = url.searchParams.get("u");
-        const s = url.searchParams.get("s");
-        expect(u).toBeTruthy();
-        expect(s).toBe("$Number$.m4s");
-        // il prefisso decodificato è l'URL CDN fino al primo `$`
-        const decoded = Buffer.from(u!, "base64url").toString("utf-8");
-        expect(decoded).toBe(
-            "https://vod.pplus.paramount.tech/intl_vms/2026/08/05/ALVE01KZ/4492635_cenc_precon_dash/ITSA_Match_Replay_720p/seg_"
-        );
-        // ricostruzione: prefisso + parte sostituita dal player
-        expect(decoded + "42.m4s").toBe(
-            "https://vod.pplus.paramount.tech/intl_vms/2026/08/05/ALVE01KZ/4492635_cenc_precon_dash/ITSA_Match_Replay_720p/seg_42.m4s"
-        );
-    });
+  it("codifica il prefisso in `u` e il template in `s`", () => {
+    // media del primo AdaptationSet (video): .../seg_$Number$.m4s
+    // (l'attributo è XML-escapato: si decodifica prima del parsing)
+    const m = rewritten.match(/<SegmentTemplate[^>]*\bmedia="([^"]+)"/);
+    expect(m).toBeTruthy();
+    const url = new URL(xmlUnescape(m![1]));
+    expect(url.pathname).toBe("/api/proxy/TESTSID1234567890/seg");
+    const u = url.searchParams.get("u");
+    const s = url.searchParams.get("s");
+    expect(u).toBeTruthy();
+    expect(s).toBe("$Number$.m4s");
+    // il prefisso decodificato è l'URL CDN fino al primo `$`
+    const decoded = Buffer.from(u!, "base64url").toString("utf-8");
+    expect(decoded).toBe(
+      "https://vod.pplus.paramount.tech/intl_vms/2026/08/05/ALVE01KZ/4492635_cenc_precon_dash/ITSA_Match_Replay_720p/seg_"
+    );
+    // ricostruzione: prefisso + parte sostituita dal player
+    expect(decoded + "42.m4s").toBe(
+      "https://vod.pplus.paramount.tech/intl_vms/2026/08/05/ALVE01KZ/4492635_cenc_precon_dash/ITSA_Match_Replay_720p/seg_42.m4s"
+    );
+  });
 
-    it("mantiene $RepresentationID$ leggibile per initialization", () => {
-        const m = rewritten.match(/initialization="([^"]+)"/);
-        expect(m).toBeTruthy();
-        const url = new URL(m![1]);
-        expect(url.searchParams.get("s")).toBe("$RepresentationID$.m4s");
-    });
+  it("mantiene $RepresentationID$ leggibile per initialization", () => {
+    const m = rewritten.match(/initialization="([^"]+)"/);
+    expect(m).toBeTruthy();
+    const url = new URL(xmlUnescape(m![1]));
+    expect(url.searchParams.get("s")).toBe("$RepresentationID$.m4s");
+  });
 });
 
 describe("rewriteMpd — URL senza placeholder", () => {
-    it("BaseURL e laurl restano in `u` senza `s`", () => {
-        const mpd = `<?xml version="1.0"?>
+  it("BaseURL e laurl restano in `u` senza `s`", () => {
+    const mpd = `<?xml version="1.0"?>
 <MPD>
   <BaseURL>https://cdn.example.com/base/</BaseURL>
   <ms:laurl>https://license.example.com/wv</ms:laurl>
 </MPD>`;
-        const rewritten = rewriteMpd({
-            text: mpd,
-            upstreamUrl: UPSTREAM,
-            baseOrigin: "https://para.example.com",
-            sid: "SID",
-        });
-        expect(rewritten).toContain("/api/proxy/SID/seg?u=");
-        expect(rewritten).toContain("/api/proxy/SID/license?u=");
-        expect(rewritten).not.toContain("&s=");
+    const rewritten = rewriteMpd({
+      text: mpd,
+      upstreamUrl: UPSTREAM,
+      baseOrigin: "https://para.example.com",
+      sid: "SID",
     });
+    expect(rewritten).toContain("/api/proxy/SID/seg?u=");
+    expect(rewritten).toContain("/api/proxy/SID/license?u=");
+    expect(rewritten).not.toContain("&s=");
+  });
+});
+
+describe("rewriteMpd — validità XML", () => {
+  // "&" costruito a runtime per evitare che l'editor interpreti le entità
+  const AMP = String.fromCharCode(38);
+
+  it("non lascia `&` crudi fuori da entità (MPD ben formato)", () => {
+    const rewritten = rewriteMpd({
+      text: REAL_MPD,
+      upstreamUrl: UPSTREAM,
+      baseOrigin: "https://para.example.com",
+      sid: "TESTSID1234567890",
+    });
+    const rawAmp = rewritten.match(/&(?!amp;|lt;|gt;|quot;|apos;|#)/g);
+    expect(rawAmp).toBeNull();
+  });
+
+  it("escapa il separatore `s` del proxy come entità", () => {
+    const rewritten = rewriteMpd({
+      text: REAL_MPD,
+      upstreamUrl: UPSTREAM,
+      baseOrigin: "https://para.example.com",
+      sid: "TESTSID1234567890",
+    });
+    // il separatore query `&s=` deve apparire escapato: `&s=`
+    expect(rewritten).toContain(AMP + "amp;s=");
+    // e il placeholder resta leggibile dopo l'entità
+    expect(rewritten).toContain(AMP + "amp;s=" + "$Number$.m4s");
+  });
 });
