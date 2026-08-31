@@ -197,3 +197,14 @@ Prima: **tutti** gli stream (live, replay, VOD) avevano `isLive: true`. I player
 **Stato**: 119/119 test verdi, tsc pulito, `next build` OK.
 
 **Deploy completato (31/08)**: merge su main (`9b0c1c4`), push su GitHub, VPS allineata via `update-docker.sh` (fetch + reset + rebuild). Verificato: HEAD VPS = `46fe722`, `/api/health` → 200, manifest/catalog con key invalida → 401/200 graceful, zero errori nei log del container. La vecchia divergenza git (§4) era già stata risolta: la VPS era a `565fe93` con albero pulito; rimossa solo la dir stray `superaprile98/`. Backup `.env` in `/home/ubuntu/.env.backup-refactor-20260831`. Da qui in poi: deploy solo via git (vedi `docs/deploy-oracle.md` § "Regola d'oro"). Resta da testare E2E lo stream HLS + DVR su una partita live da Stremio.
+
+## 2026-08-31 — Audit e pulizia VPS
+
+**Verdict: la macchina era già ben organizzata.** `/opt` contiene solo `containerd` (Docker) e `unified-monitoring-agent` (Oracle) — roba di sistema, nessun deploy abusivo. `server-stack/` è pulito: komodo, ngix (NPM), taninator, paramount-stremio, ognuno nel suo folder. `/etc/paramount-stremio/` inesistente (bare-metal mai installato).
+
+**Pulito:**
+- **Docker build cache: 18.94 GB pruned** (era il vero peso della macchina) → disco da 62% (28G) a **24% (11G usati, 34G liberi)**
+- **Unit ghost `gluetun-auto-restart.service` + `.path`** (failed/not-found dal 23/08, resto del vecchio setup VPN) → `systemctl reset-failed`
+- **~30 file debug in `/tmp`** (artefatti sessioni DVR/MPD: cat*.json, mpd2.xml, test.mpd, init*.mp4, seg*.m4s, key.bin, lic_resp.bin, debug-live-listings.cjs, paramount-update.bundle, ...) → rimossi; restano solo le dir di sistema
+
+**Regola per il futuro:** i file di debug vanno in `/tmp` (auto-pulito al reboot) e si eliminano a fine sessione; il build cache Docker si può prunare con `docker builder prune -af` quando il disco cresce (si ricrea da solo al prossimo build).
