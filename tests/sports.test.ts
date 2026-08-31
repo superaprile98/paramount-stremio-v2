@@ -7,14 +7,14 @@ import {
     normalizeSportEvent,
     SportEvent,
     SportPrefs,
-} from "@/lib/paramount/types/sport-models";
+} from "@/lib/paramount/sport-models";
 import {
     applyPrefs,
     orderEventsByPriority,
     mapSportEventToMeta,
     makeFavoriteTeam,
 } from "@/lib/paramount/sports";
-import { CURATED_LEAGUE_KEYS, isCuratedLeague } from "@/lib/paramount/catalogs";
+import { CURATED_LEAGUE_KEYS, isCuratedLeague } from "@/lib/paramount/sports";
 
 describe("sport-models: teamKey", () => {
     it("normalizes a team name to a slug", () => {

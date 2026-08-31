@@ -10,8 +10,8 @@ import {
     stripJsonSuffix
 } from "@/lib/paramount/utils";
 import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports";
-import type { SportEvent } from "@/lib/paramount/types/sport-models";
-import { resolveLiveStream } from "@/lib/paramount/types/live";
+import type { SportEvent } from "@/lib/paramount/sport-models";
+import { resolveLiveStream } from "@/lib/paramount/live";
 import { httpClient } from "@/lib/http/client";
 import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls";
 import { hlsStream, type AddonStream } from "@/lib/stremio/streams";

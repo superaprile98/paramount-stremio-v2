@@ -3,7 +3,7 @@ import { ParamountClient } from "@/lib/paramount/client";
 import { parsePplusId } from "@/lib/paramount/mapping";
 import { safeDecode, stripJsonSuffix } from "@/lib/paramount/utils";
 import { findSportEvent, mapSportEventToMeta } from "@/lib/paramount/sports";
-import { buildLiveMeta } from "@/lib/paramount/types/live";
+import { buildLiveMeta } from "@/lib/paramount/live";
 
 export const runtime = "nodejs";
 

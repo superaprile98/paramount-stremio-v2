@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
-import { getCatalogMetas } from "@/lib/paramount/catalogs";
+import { getCatalogMetas } from "@/lib/paramount/sports";
 import { safeDecode } from "@/lib/paramount/utils";
 
 export const runtime = "nodejs";

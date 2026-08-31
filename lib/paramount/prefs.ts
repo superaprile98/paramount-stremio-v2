@@ -7,7 +7,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { SportPrefs, SportTeam } from "@/lib/paramount/types/sport-models";
+import { SportPrefs, SportTeam } from "@/lib/paramount/sport-models";
 
 const PREFS_DIR = process.env.PREFS_DIR || path.join(process.cwd(), ".data", "prefs");
 const PREFS_FILE = path.join(PREFS_DIR, "sport-prefs.json");
