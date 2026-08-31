@@ -22,48 +22,34 @@ This is an add-on that allows you to view the contents of your Paramount+ accoun
 ## ✨ Features
 
 - Account login with **Device Code** (like a TV) or **email + password** (server-side, through the proxy — no browser activation required)
-- Automatically generated catalogs/meta, always up to date (live TV, sports, movies and series)
-- Auto-proxed streams directly from the addon (HLS for live/sports, DASH/MPD proxy for VOD)
-- IPTV playlist (M3U) and EPG export for external players
+- **Live-only sports view**: live and upcoming events of every league on Paramount+ (Serie A, UEFA cups, NFL, UFC, ...), always up to date
+- **DVR "From Start"**: watch a live match from the beginning with free seek, like the native Paramount+ app
+- Auto-proxied **HLS AES-128** streams that play on every Stremio client (desktop, web, Android, TV)
 - Multiple accounts with a single instance of the addon
-- **Sports-only view** with per-league catalogs (custom `Sport` content type), replays and per-profile preferences
+- Per-profile sports preferences (favorite teams, hidden leagues)
 
-## ⚽ Sports view
+## ⚽ Sports view (live-only)
 
-The addon exposes a dedicated **sports-only** experience in Stremio. Catalogs use the custom `sport` content type (displayed as **Sport** in Stremio) and are organized as **5 fixed home sections**:
+The addon exposes a dedicated **sports-only** experience using the custom `sport` content type (displayed as **Sport** in Stremio), with two catalogs:
 
-1. **Serie A** — the Italian Serie A.
-2. **UEFA Champions League**
-3. **UEFA Europa League**
-4. **UEFA Conference League**
-5. **Altro** — every other sport/league on Paramount+ (Premier League, NBA, NFL on CBS, UFC, etc.) in a single section.
+1. **Live e Prossimi** — home slider with live + upcoming events of the 4 curated leagues (Serie A → Champions → Europa → Conference), grouped by league.
+2. **Sport** — dropdown with all available leagues ("Tutte" by default, or a specific league).
 
-Each section is browsable by genre:
+Events are ordered: live first, then upcoming by start time.
 
-- `Live`, `Upcoming`, `Replay` — filter the section by match status.
-- For the **Altro** section only, the dropdown also lists the names of the remaining leagues: selecting a league shows only that league's events.
+**Why live-only?** Paramount+ replays and VOD are **DASH/MPD with Widevine DRM**: Stremio desktop (mpv) has no Widevine CDM and the web player's license flow does not complete through the proxy, so replays are unplayable. Live streams and the DVR "From Start" playlist are **HLS AES-128** and work everywhere. For this reason replays and VOD are intentionally excluded from the catalogs and their playback pipeline was removed from the code.
 
-- **Replays** — finished matches can be re-watched from each catalog. Note: replays depend on Paramount's `previousListings` field being populated, which is empty at the start of each season. The replay-classification logic was hardened so that listings without an explicit `endMs` are now correctly shown as `Replay` rather than dropped.
-- **Per-profile preferences** — each profile can set **one or more favorite teams** (with quick-pick suggestions like Inter, Milan, Juventus, Roma, Lazio, Napoli, Atalanta, Fiorentina) and **show/hide** individual leagues. Favorite teams are highlighted at the top of every Sport catalog. Configure them on the `/configure` page (the ⚽ Sports View banner at the top of the page).
-
-> Movies and series are intentionally **not** part of the sports view; they remain available through the standard catalogs.
+- **DVR "From Start"** — for live sport events the stream list includes a `⏪ From Start (DVR)` entry: the addon synthesizes an `#EXT-X-PLAYLIST-TYPE:EVENT` playlist covering the whole event (segment 0 → live edge), served as a normal VOD-like stream with free seek. The CDN keeps all sequentially-numbered segments of the event and the AES-128 key/IV is static per event.
+- **Per-profile preferences** — each profile can set **favorite teams** and **show/hide** individual leagues. Favorite teams are always shown even if their league is hidden. Configure them on the `/configure` page (⚽ Sports View card).
 
 ## 💥 Known issues
-
-### VOD / DRM limitations (important)
-
-- **VOD content (movies and series) is protected by Widevine DRM** (Irdeto). The desktop Stremio player does **not** include a Widevine CDM, so VOD playback is only possible on players that ship a CDM (e.g. Stremio on Android TV, or external players with Widevine support).
-- The addon proxies the DASH/MPD manifest and the Widevine license endpoint (`/api/proxy/:sid/mpd`, `/api/proxy/:sid/license`) so that players with a CDM can play VOD content. It does **not** decrypt or bypass DRM in any way.
-- If your player has no CDM, VOD streams will stop after a few seconds (the license request fails). This is a player limitation, not an addon bug.
-- Live TV and sports use HLS when available and work on all players. The addon now **prefers HLS (`.m3u8`) over DASH (`.mpd`)** when the Irdeto token contains both, so replays and live channels that expose an HLS variant play everywhere. Only content that is exclusively DASH (some replays/VOD) falls back to the MPD proxy and needs a Widevine-capable player.
-
-### Other known issues
 
 - **US-only service**: the addon talks to the **US** Paramount+ API (`www.paramountplus.com`, US `at` token). If you are outside the US, the activation page will geo-redirect you to your local Paramount+ (a separate system with separate accounts) and the device code will never be accepted. To activate, open `https://www.paramountplus.com/activate/androidtv/` from a browser that exits from a US IP (US VPN or the same proxy used by the addon — your IP must be whitelisted). The page must show "Activate Paramount Plus on Android TV" in English.
 - **No browser access to the proxy? Use the password login.** The device-code flow needs the user's own browser to reach `paramountplus.com/activate`, which fails when the upstream proxy only whitelists the server's IP (a common setup with shared rotating proxies like Webshare). To work around this, `/configure` exposes a second tab ("Email + password") that performs the login **server-side**, through the same proxy the addon uses for streams: only the addon container needs to talk to Paramount+, the user only types credentials in the configure page. The request is rate-limited (5 failed attempts / 15 min per IP) to avoid Paramount+ IP bans. Credentials are never stored: they are exchanged for session cookies and sealed into a JWE, exactly like the device-code flow.
 - Some players (such as KSPlayer) may freeze during commercials due to poor support for the m3u #EXT-X-DISCONTINUITY tag (we recommend using libVLC or an external player that supports this tag).
 - If you see an HTTP 403 error during playback, your IP may have been permanently banned (this happens when using a VPN). We recommend changing your DNS server and trying again.
 - The addon login session is valid for one year. If you notice that the addon is no longer working, try logging in again.
+- **DVR discontinuities**: the synthesized DVR playlist cannot reconstruct the `#EXT-X-DISCONTINUITY` tags of past ad-breaks (they are not knowable from the live window). Minor glitches at commercial boundaries are possible; decryption stays correct (uniform key/IV).
 
 ## 🛠️ Troubleshooting
 
@@ -154,8 +140,8 @@ Full guide, troubleshooting, and optional nginx + Let's Encrypt setup: see [`dep
 The following tools are required for manual installation: [git](https://git-scm.com/install/), [node/npm](https://nodejs.org/en/download/current) (20+).
 
 ```bash
-git clone https://github.com/RioNoir/paramount-stremio.git#main
-cd paramount-stremio
+git clone https://github.com/superaprile98/paramount-stremio-v2.git
+cd paramount-stremio-v2
 
 ###
 # Before starting the addon, create an .env file with the required environment variables. See below.
@@ -180,7 +166,7 @@ The following tools are required for docker installation: [git](https://git-scm.
 
 ```bash
 #Image build
-docker build -t paramount-stremio https://github.com/RioNoir/paramount-stremio.git#main
+docker build -t paramount-stremio https://github.com/superaprile98/paramount-stremio-v2.git#main
 
 #Start addon
 docker run --name Paramount-Stremio -e BASE_URL=http://localhost:7850 -e KEY_SECRET=[random-key] -p 7850:7850 -d paramount-stremio
@@ -286,24 +272,22 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 
 | Route | Description |
 |:------|:------------|
-| `/` | Web UI (login with Device Code, copy manifest / M3U / EPG links) |
+| `/` | Web UI (login with Device Code, copy manifest link) |
 | `/configure` | Same as `/` (alias) |
 | `/api/health` | Health check for orchestration (Docker HEALTHCHECK, load balancers) |
 | `/api/auth/device/start` | Starts the Paramount+ device-code login flow |
 | `/api/auth/device/poll` | Polls the login flow until the user authorizes the device |
+| `/api/auth/password/login` | Server-side email + password login (rate-limited) |
 | `/api/stremio/:key/manifest.json` | Stremio addon manifest (catalogs, resources, types) |
-| `/api/stremio/:key/catalog/:type/:id/...` | Stremio catalogs (live, sports, movies, series) |
+| `/api/stremio/:key/catalog/:type/:id/...` | Stremio catalogs (live channels, sports) |
 | `/api/stremio/:key/meta/:type/:id` | Stremio metadata for a single item |
-| `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS / DASH) |
+| `/api/stremio/:key/stream/:type/:id` | Stremio stream resolution (HLS + DVR) |
 | `/api/stremio/:key/prefs` | Per-profile sports preferences (GET) and actions (POST: set, addTeam, removeTeam, hideLeague, showLeague) |
 | `/api/stremio/:key/proxy/hls` | Internal HLS proxy (rewrites master/media playlists) |
 | `/api/stremio/:key/proxy/seg` | Internal HLS segment proxy |
 | `/api/stremio/:key/proxy/license` | Internal AES-128 HLS key proxy |
-| `/api/proxy/:sid/mpd` | Internal DASH/MPD proxy for VOD (Widevine) |
-| `/api/proxy/:sid/license` | Internal Widevine license proxy for VOD |
-| `/api/proxy/:sid/seg` | Internal DASH segment proxy for VOD |
-| `/api/iptv/:key/playlist.m3u` | IPTV M3U playlist for external players |
-| `/api/iptv/:key/epg.xml` | IPTV EPG (XMLTV) for external players |
+| `/api/stremio/:key/proxy/dvr` | DVR "From Start" playlist (EVENT playlist from segment 0 to live edge) |
+| `/api/proxy/:sid/dvrseg` | Internal DVR segment proxy (fetches segment N from the CDN) |
 | `/api/img` | Image proxy (posters, logos) |
 | `/api/proxy/status` | Multi-proxy health (GET = state, POST `{action:"reprobe"}` = force probe). |
 | `/api/vpn/status` | VPN/proxy config on disk + multi-proxy health. |
@@ -318,7 +302,7 @@ The addon exposes the following HTTP endpoints (all under the configured `BASE_U
 
 ## 🧪 Testing
 
-The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, MPD helpers, IPTV mapping, ID mapping, manifest URL selection, the short-id cache, the sports data model (team keys, team parsing, status derivation, league normalization, preferences filtering and priority ordering), and the VLESS share-link parser + sing-box config builder.
+The project uses [Vitest](https://vitest.dev) for unit tests. Tests cover the pure functions: HLS playlist rewriting, DVR playlist synthesis (with real recorded DAI playlist data), ID mapping, manifest URL selection, the short-id cache, the sports data model (team keys, team parsing, status derivation, league normalization, preferences filtering and priority ordering), and the VLESS share-link parser + sing-box config builder.
 
 ```bash
 npm install
@@ -356,9 +340,10 @@ For new features, open an issue describing:
 ---
 
 ## ⚖️ Legal Disclaimer
+
 This software is provided for educational and research purposes only. The author does not endorse or encourage any form of piracy or violation of the Terms of Service (ToS) of third-party streaming platforms.
 
-No DRM bypass: This software does not include tools to bypass, remove, or violate DRM protections (such as Widevine). It acts solely as a proxy to forward legitimate requests made by a duly subscribed user.
+No DRM bypass: This software does not include tools to bypass, remove, or violate DRM protections. It acts solely as a proxy to forward legitimate requests made by a duly subscribed user.
 
 User Responsibility: The end user is solely responsible for the use of the software and must ensure that their use complies with local laws and the contractual terms of the content provider.
 
