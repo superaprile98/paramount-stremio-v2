@@ -26,7 +26,7 @@ paramount-stremio/
 │   ├── api/
 │   │   ├── install/[token]/    # entry-point Stremio (manifest, catch-all)
 │   │   ├── stremio/[key]/      # catalog, meta, stream, prefs, proxy HLS/license/seg/DVR
-│   │   ├── proxy/[sid]/        # proxy compatti per MPD (sid in-process): mpd, license, seg, dvrseg
+│   │   ├── proxy/[sid]/        # proxy compatto DVR (sid in-process): dvrseg
 │   │   ├── auth/               # device auth + login password
 │   │   └── vpn/                # setup/preview/status VLESS
 │   └── configure/              # UI wizard configurazione
@@ -36,15 +36,16 @@ paramount-stremio/
 │   ├── paramount/
 │   │   ├── client.ts           # client API Paramount+ (apps-api)
 │   │   ├── sports.ts           # logica catalogo/risoluzione stream sport
-│   │   ├── proxy/              # hls.ts, mpd.ts, dvr.ts (logica pura, testabile)
-│   │   └── types/              # modelli normalizzati (sport, live, vod, api)
-│   ├── stremio/                # manifest, tipi, CORS
+│   │   ├── live.ts              # canali live
+│   │   ├── sport-models.ts     # modelli sport normalizzati
+│   │   ├── proxy/              # hls.ts, dvr.ts (logica pura, testabile)
+│   │   └── types/api.ts        # shape risposte API
+│   ├── stremio/                # manifest, tipi, CORS, StreamBuilder
 │   └── vpn/                    # sing-box config builder, share-links parser, storage
-├── scripts/                    # deploy/update VPS, systemd, watcher VPN
-├── tests/                      # vitest (125 test, inclusi 15 sul DVR)
-├── plans/                      # spec delle feature (VLESS, configure wizard, ...)
-├── deploy/oracle/              # guida deploy VPS
-└── docs/                       # documentazione (questo recap)
+├── scripts/                    # deploy/update Docker VPS, watcher VPN
+├── tests/                      # vitest (119 test, inclusi 15 sul DVR)
+├── plans/                      # piani attivi (refactor)
+└── docs/                       # recap, guida deploy, archive/ (spec storiche)
 ```
 
 **Pulizia fatta in questa sessione:**
@@ -195,4 +196,4 @@ Prima: **tutti** gli stream (live, replay, VOD) avevano `isLive: true`. I player
 
 **Stato**: 119/119 test verdi, tsc pulito, `next build` OK.
 
-**Deploy completato (31/08)**: merge su main (`9b0c1c4`), push su GitHub, VPS allineata via `update-docker.sh` (fetch + reset + rebuild). Verificato: HEAD VPS = `46fe722`, `/api/health` → 200, manifest/catalog con key invalida → 401/200 graceful, zero errori nei log del container. La vecchia divergenza git (§4) era già stata risolta: la VPS era a `565fe93` con albero pulito; rimossa solo la dir stray `superaprile98/`. Backup `.env` in `/home/ubuntu/.env.backup-refactor-20260831`. Da qui in poi: deploy solo via git (vedi `deploy/oracle/README.md` § "Regola d'oro"). Resta da testare E2E lo stream HLS + DVR su una partita live da Stremio.
+**Deploy completato (31/08)**: merge su main (`9b0c1c4`), push su GitHub, VPS allineata via `update-docker.sh` (fetch + reset + rebuild). Verificato: HEAD VPS = `46fe722`, `/api/health` → 200, manifest/catalog con key invalida → 401/200 graceful, zero errori nei log del container. La vecchia divergenza git (§4) era già stata risolta: la VPS era a `565fe93` con albero pulito; rimossa solo la dir stray `superaprile98/`. Backup `.env` in `/home/ubuntu/.env.backup-refactor-20260831`. Da qui in poi: deploy solo via git (vedi `docs/deploy-oracle.md` § "Regola d'oro"). Resta da testare E2E lo stream HLS + DVR su una partita live da Stremio.

@@ -1,6 +1,6 @@
 export type StremioMeta = {
     id: string;
-    type: "movie" | "series" | "tv";
+    type: "tv" | "sport";
     name: string;
     logo?: string;
     poster?: string;

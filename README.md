@@ -129,9 +129,7 @@ docker compose restart
 sudo nano /home/ubuntu/server-stack/paramount-stremio/.env   # change BASE_URL/PORT/KEY_SECRET here
 ```
 
-> A bare-metal alternative (Node.js + `systemd`, no Docker) is also available: `sudo bash scripts/install-oracle.sh` / `scripts/update-oracle.sh`. See [`deploy/oracle/README.md`](deploy/oracle/README.md) § 7.
-
-Full guide, troubleshooting, and optional nginx + Let's Encrypt setup: see [`deploy/oracle/README.md`](deploy/oracle/README.md).
+Full guide, troubleshooting, and optional nginx + Let's Encrypt setup: see [`docs/deploy-oracle.md`](docs/deploy-oracle.md).
 
 ---
 

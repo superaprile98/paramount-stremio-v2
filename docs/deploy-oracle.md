@@ -2,7 +2,7 @@
 
 Setup **Docker-first**: l'addon gira in un container Docker con `docker compose`, immagine multi-stage ottimizzata, utente non-root, volume named per i dati persistenti e healthcheck automatico. Il deploy è un singolo script idempotente.
 
-> **Alternativa bare-metal** (senza Docker, servizio `systemd`): vedi [sezione 7](#7-alternativa-bare-metal-systemd). Docker è il percorso consigliato: setup più pulito, aggiornamenti più semplici, nessuna dipendenza Node.js sull'host.
+> Docker è l'unico percorso supportato: setup pulito, aggiornamenti semplici, nessuna dipendenza Node.js sull'host.
 
 L'installer [`scripts/deploy-docker.sh`](../../scripts/deploy-docker.sh) rileva automaticamente il package manager: **Oracle Linux / RHEL / Fedora** → `dnf`; **Ubuntu / Debian** → `apt`. Entrambe le distro sono ufficialmente supportate sulle VM Always Free di Oracle Cloud.
 
@@ -250,26 +250,3 @@ docker run --rm -v paramount-data:/data -v "$PWD":/backup alpine \
 ```
 
 > ⚠️ Se cambi `KEY_SECRET` nel `.env`, i login esistenti diventano illeggibili: l'utente dovrà rifare il login da `/configure`.
-
-## 7. Alternativa bare-metal (systemd)
-
-Se preferisci **non usare Docker** (es. VM da 1 GB RAM senza swap), esiste il percorso bare-metal con Node.js 20 LTS e servizio `systemd`:
-
-```bash
-cd /home/ubuntu/server-stack/paramount-stremio
-sudo bash scripts/install-oracle.sh     # installa Node.js, crea utente 'addon', systemd unit
-sudo bash scripts/update-oracle.sh      # aggiornamenti successivi
-```
-
-Differenze rispetto a Docker:
-
-| | Docker (consigliato) | Bare-metal |
-|---|---|---|
-| Dipendenze sull'host | Solo Docker Engine | Node.js 20 + git |
-| Isolamento | Container non-root, `cap_drop: ALL` | Utente di sistema `addon` |
-| Persistenza | Volume named `paramount-data` | `/home/ubuntu/server-stack/paramount-stremio/.data` |
-| Aggiornamento | `update-docker.sh` (rebuild immagine) | `update-oracle.sh` (npm ci + next build) |
-| Log | `docker compose logs -f` | `journalctl -u paramount-stremio -f` |
-| Porta di default | `7850` | `3000` |
-
-La configurazione nginx (sezione 5) è identica, cambia solo la porta di `proxy_pass` (`3000` per bare-metal).
