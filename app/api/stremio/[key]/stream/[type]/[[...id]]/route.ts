@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
 import { parsePplusId } from "@/lib/paramount/mapping";
@@ -14,7 +13,8 @@ import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports"
 import type { SportEvent } from "@/lib/paramount/types/sport-models";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
 import { httpClient } from "@/lib/http/client";
-import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls"
+import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls";
+import { hlsStream, type AddonStream } from "@/lib/stremio/streams";
 
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
@@ -41,7 +41,7 @@ export async function GET(
     req: NextRequest,
     ctx: { params: Promise<{ key: string; type: string; id?: string[] }> }
 ) {
-    const { key, type, id } = await ctx.params;
+    const { key, id } = await ctx.params;
 
     const client = new ParamountClient();
     await client.setSessionKey(key);
@@ -65,13 +65,13 @@ export async function GET(
     if (!streamData) return NextResponse.json({ streams: [] }, { status: 200 });
 
     // Un evento è "live" solo se è un canale live o uno sport in corso:
-    // replay e VOD con isLive:true causano loop/seek broken sui player.
+    // con isLive:true su playlist finite i player vanno in loop/seek broken.
     const isLiveEvent = parsed.kind === "live" || (parsed.kind === "sport" && sportEvent?.status === "live");
 
     const lsSession = streamData.lsSession;
     const streamingUrl = new URL(streamData.streamingUrl);
     const streamingTitle = streamData.streamingTitle;
-    const streams = [];
+    const streams: AddonStream[] = [];
 
     const headers: Record<string, string> = {
         "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
@@ -85,95 +85,72 @@ export async function GET(
         headers["referer"] = PPLUS_BASE_URL;
     }
 
-    // Proxy playlist endpoint
-    if (streamingUrl) {
-        const baseUrl = process.env.BASE_URL?.replace(/\/$/, '') ?? new URL(req.url).origin;
+    const baseUrl = process.env.BASE_URL?.replace(/\/$/, "") ?? new URL(req.url).origin;
 
-        if (streamingUrl.toString().includes('.m3u8')) {
+    if (streamingUrl.toString().includes(".m3u8")) {
+        // Base proxy URL (immutable reference — clone per variante)
+        const proxyBase = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/hls`);
+        proxyBase.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString("base64url"));
+        proxyBase.searchParams.set("t", Buffer.from(lsSession.toString()).toString("base64url"));
 
-            // Base proxy URL (immutable reference — clone per variante)
-            const proxyBase = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/hls`);
-            proxyBase.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString('base64url'));
-            proxyBase.searchParams.set("t", Buffer.from(lsSession.toString()).toString('base64url'));
+        // Auto quality stream
+        streams.push(
+            hlsStream(`${streamingTitle} \n🗣️ Auto \n🎞 HLS (Auto quality)`, proxyBase, isLiveEvent)
+        );
 
-            // Auto quality stream
-            streams.push({
-                name: "Paramount+",
-                title: `${streamingTitle} \n🗣️ Auto \n🎞 HLS (Auto quality)`,
-                url: proxyBase.toString(),
-                isLive: isLiveEvent,
-                notWebReady: false
-            });
+        // DVR "from start" per eventi sportivi live: il CDN conserva tutti i
+        // segmenti numerati dell'evento, la route /proxy/dvr sintetizza una
+        // playlist EVENT completa (dal segmento 0 al live edge).
+        if (isLiveEvent && parsed.kind === "sport") {
+            const dvrUrl = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/dvr`);
+            dvrUrl.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString("base64url"));
+            dvrUrl.searchParams.set("t", Buffer.from(lsSession.toString()).toString("base64url"));
+            streams.push(
+                hlsStream(`${streamingTitle} \n⏪ From Start (DVR) \n🎞 HLS (Auto quality)`, dvrUrl, false)
+            );
+        }
 
-            // DVR "from start" per eventi sportivi live: il CDN conserva tutti i
-            // segmenti numerati dell'evento, la route /proxy/dvr sintetizza una
-            // playlist EVENT completa (dal segmento 0 al live edge).
-            if (isLiveEvent && parsed.kind === "sport") {
-                const dvrUrl = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/dvr`);
-                dvrUrl.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString('base64url'));
-                dvrUrl.searchParams.set("t", Buffer.from(lsSession.toString()).toString('base64url'));
-                streams.push({
-                    name: "Paramount+",
-                    title: `${streamingTitle} \n⏪ From Start (DVR) \n🎞 HLS (Auto quality)`,
-                    url: dvrUrl.toString(),
-                    isLive: false,
-                    notWebReady: false
-                });
+        headers["accept"] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
+        const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers);
+        if (masterM3u8) {
+            const audioTracks = splitAudioTracks(masterM3u8);
+            const multiLang = audioTracks.length >= 2;
+
+            // Per-language Auto quality streams
+            if (multiLang) {
+                for (const track of audioTracks) {
+                    const lUrl = new URL(proxyBase.toString());
+                    lUrl.searchParams.set("lang", track.language);
+                    streams.push(
+                        hlsStream(`${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (Auto quality)`, lUrl, isLiveEvent)
+                    );
+                }
             }
 
-            headers['accept'] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
-            const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers);
-            if (masterM3u8) {
-                const audioTracks = splitAudioTracks(masterM3u8);
-                const multiLang = audioTracks.length >= 2;
+            // Quality-specific streams (+ per-language)
+            for (const variant of splitMasterPlaylist(masterM3u8)) {
+                const qUrl = new URL(proxyBase.toString());
+                qUrl.searchParams.set("b", String(variant.bandwidth));
+                streams.push(
+                    hlsStream(`${streamingTitle} \n🗣️ Auto \n🎞 HLS (${variant.quality})`, qUrl, isLiveEvent)
+                );
 
-                // Per-language Auto quality streams
                 if (multiLang) {
                     for (const track of audioTracks) {
                         const lUrl = new URL(proxyBase.toString());
+                        lUrl.searchParams.set("b", String(variant.bandwidth));
                         lUrl.searchParams.set("lang", track.language);
-                        streams.push({
-                            name: "Paramount+",
-                            title: `${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (Auto quality)`,
-                            url: lUrl.toString(),
-                            isLive: isLiveEvent,
-                            notWebReady: false
-                        });
-                    }
-                }
-
-                // Quality-specific streams
-                for (const variant of splitMasterPlaylist(masterM3u8)) {
-                    const qUrl = new URL(proxyBase.toString());
-                    qUrl.searchParams.set("b", String(variant.bandwidth));
-                    streams.push({
-                        name: "Paramount+",
-                        title: `${streamingTitle} \n🗣️ Auto \n🎞 HLS (${variant.quality})`,
-                        url: qUrl.toString(),
-                        isLive: isLiveEvent,
-                        notWebReady: false
-                    });
-
-                    // Per-language quality streams
-                    if (multiLang) {
-                        for (const track of audioTracks) {
-                            const lUrl = new URL(proxyBase.toString());
-                            lUrl.searchParams.set("b", String(variant.bandwidth));
-                            lUrl.searchParams.set("lang", track.language);
-                            streams.push({
-                                name: "Paramount+",
-                                title: `${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (${variant.quality})`,
-                                url: lUrl.toString(),
-                                isLive: isLiveEvent,
-                                notWebReady: false
-                            });
-                        }
+                        streams.push(
+                            hlsStream(
+                                `${streamingTitle} \n🗣️ ${track.name} \n🎞 HLS (${variant.quality})`,
+                                lUrl,
+                                isLiveEvent
+                            )
+                        );
                     }
                 }
             }
-
         }
-
     }
 
     return NextResponse.json({ streams }, {
