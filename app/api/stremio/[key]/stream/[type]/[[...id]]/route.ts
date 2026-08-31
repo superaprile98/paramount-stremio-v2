@@ -14,7 +14,6 @@ import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports"
 import type { SportEvent } from "@/lib/paramount/types/sport-models";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
 import { resolveVodStream } from "@/lib/paramount/types/vod";
-import { shorten } from "@/lib/http/sid";
 import { httpClient } from "@/lib/http/client";
 import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls"
 
@@ -72,7 +71,6 @@ export async function GET(
     // replay e VOD con isLive:true causano loop/seek broken sui player.
     const isLiveEvent = parsed.kind === "live" || (parsed.kind === "sport" && sportEvent?.status === "live");
 
-    const lsUrl = streamData.lsUrl ?? "";
     const lsSession = streamData.lsSession;
     const streamingUrl = new URL(streamData.streamingUrl);
     const streamingTitle = streamData.streamingTitle;
@@ -177,31 +175,8 @@ export async function GET(
                 }
             }
 
-        } else if (streamingUrl.toString().includes('.mpd')) {
-            //MPD internal proxy stream
-            const sid = shorten(key, streamingUrl.toString(), lsSession.toString(), lsUrl.toString());
-            const internal = new URL(`${baseUrl}/api/proxy/${sid}/mpd`);
-            const license = new URL(`${baseUrl}/api/proxy/${sid}/license`);
-
-            if (internal) {
-                streams.push({
-                    name: "Paramount+",
-                    title: `${streamingTitle} \n🎞 MPD`,
-                    url: internal.toString(),
-                    isLive: isLiveEvent,
-                    notWebReady: true,
-                    behaviorHints: {
-                        configuration: {
-                            drm: {
-                                widevine: {
-                                    licenseUrl: license.toString()
-                                }
-                            }
-                        }
-                    }
-                });
-            }
         }
+
     }
 
     return NextResponse.json({ streams }, {
