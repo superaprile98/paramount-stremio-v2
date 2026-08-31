@@ -193,4 +193,6 @@ Prima: **tutti** gli stream (live, replay, VOD) avevano `isLive: true`. I player
 - CORS unificato via `withCors()` in catalog/meta/stream route; tipo stale `genre: "Live"|"Upcoming"|"Replay"` corretto.
 - README riscritto: rimossi IPTV/MFP/VOD (endpoint inesistenti), documentati DVR e vista live-only.
 
-**Stato**: 119/119 test verdi, tsc pulito, `next build` OK. Deploy git-based sulla VPS in fase di allineamento (vedi § divergenza git).
+**Stato**: 119/119 test verdi, tsc pulito, `next build` OK.
+
+**Deploy completato (31/08)**: merge su main (`9b0c1c4`), push su GitHub, VPS allineata via `update-docker.sh` (fetch + reset + rebuild). Verificato: HEAD VPS = `46fe722`, `/api/health` → 200, manifest/catalog con key invalida → 401/200 graceful, zero errori nei log del container. La vecchia divergenza git (§4) era già stata risolta: la VPS era a `565fe93` con albero pulito; rimossa solo la dir stray `superaprile98/`. Backup `.env` in `/home/ubuntu/.env.backup-refactor-20260831`. Da qui in poi: deploy solo via git (vedi `deploy/oracle/README.md` § "Regola d'oro"). Resta da testare E2E lo stream HLS + DVR su una partita live da Stremio.
