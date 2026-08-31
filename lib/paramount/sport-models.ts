@@ -192,8 +192,7 @@ export function deriveStatus(
 /** Normalizza un listing sportivo Paramount in un SportEvent. */
 export function normalizeSportEvent(
     e: any,
-    league: SportLeague | null,
-    options?: { forceStatus?: SportEventStatus }
+    league: SportLeague | null
 ): SportEvent | null {
     const id = e?.id;
     const title = e?.title;
@@ -221,14 +220,7 @@ export function normalizeSportEvent(
                 e?.filePathLogo ? String(e.filePathLogo) :
                     undefined;
 
-    const derivedStatus = deriveStatus(e?.isListingLive, startMs, endMs);
-    // Se forceStatus e' specificato e diverso da "upcoming", ha la precedenza
-    // sulla derivazione automatica (utile per forzare "replay" sugli eventi
-    // provenienti da previousListings anche quando i timestamp mancano).
-    const status: SportEventStatus =
-        options?.forceStatus && options.forceStatus !== "upcoming"
-            ? options.forceStatus
-            : derivedStatus;
+    const status: SportEventStatus = deriveStatus(e?.isListingLive, startMs, endMs);
 
     return {
         id: String(id),

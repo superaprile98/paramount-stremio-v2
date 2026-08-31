@@ -10,7 +10,7 @@ import {
     showLeague,
 } from "@/lib/paramount/prefs";
 import { getSportLeagues, makeFavoriteTeam } from "@/lib/paramount/sports";
-import { SportPrefs } from "@/lib/paramount/types/sport-models";
+import { SportPrefs } from "@/lib/paramount/sport-models";
 
 export const runtime = "nodejs";
 

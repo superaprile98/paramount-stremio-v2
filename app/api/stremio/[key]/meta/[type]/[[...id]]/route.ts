@@ -3,8 +3,8 @@ import { ParamountClient } from "@/lib/paramount/client";
 import { parsePplusId } from "@/lib/paramount/mapping";
 import { safeDecode, stripJsonSuffix } from "@/lib/paramount/utils";
 import { findSportEvent, mapSportEventToMeta } from "@/lib/paramount/sports";
-import { buildLiveMeta } from "@/lib/paramount/types/live";
-import { buildMovieMeta, buildSeriesMeta } from "@/lib/paramount/types/vod";
+import { buildLiveMeta } from "@/lib/paramount/live";
+import { withCors } from "@/lib/stremio/cors";
 
 export const runtime = "nodejs";
 
@@ -28,23 +28,13 @@ export async function GET(
     if (parsed.kind === "sport" && (type === "tv" || type === "sport")) {
         const event = await findSportEvent(session, parsed.key);
         const meta = event ? mapSportEventToMeta(event) : null;
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
+        return withCors(NextResponse.json({ meta }));
     }
 
     if (parsed.kind === "live" && type === "tv") {
         const meta = await buildLiveMeta(session, parsed.key);
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
+        return withCors(NextResponse.json({ meta }));
     }
 
-    if (parsed.kind === "movie" && type === "movie") {
-        const meta = await buildMovieMeta(session, parsed.key);
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
-    }
-
-    if (parsed.kind === "series" && type === "series") {
-        const meta = await buildSeriesMeta(session, parsed.key);
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
-    }
-
-    return NextResponse.json({ meta: null }, { status: 200 });
+    return withCors(NextResponse.json({ meta: null }));
 }

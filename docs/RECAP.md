@@ -173,3 +173,24 @@ Prima: **tutti** gli stream (live, replay, VOD) avevano `isLive: true`. I player
 - Genre options dei cataloghi: solo `Live` (+ nomi leghe in "Altro").
 - `getLeagueEvents(..., includeReplays=false)` → niente chiamate VOD catch-up (più veloce).
 - Il codice replay in `sports.ts` resta (usato da `findSportEvent` per stream resolution) ma non è più esposto nei cataloghi.
+
+---
+
+## 2026-08-31 — Refactor totale (branch `refactor/total`)
+
+**Decisioni concordate**: live-only definitivo (rimozione pipeline VOD/replay/MPD-Widevine), strategia incrementale con test verdi a ogni fase, deploy git-based sulla VPS (addio scp). Piano completo in `plans/refactor-total-plan.md`.
+
+**Cosa è stato rimosso (dead code, ~1400 righe):**
+- Pipeline **DASH/MPD Widevine**: `lib/paramount/proxy/mpd.ts`, route `/api/proxy/[sid]/mpd|license|seg`, `tests/mpd.test.ts`, ramo `.mpd` della stream route.
+- Pipeline **VOD/replay**: `lib/paramount/types/vod.ts`, `VodItem`, metodi client VOD (`getTrendingMovies`, `getAllShows`, `getSearch`, `getMovie`, `getShow`, `getShowSection`), rami movie/series in catalogs/meta/stream, macchina replay in `sports.ts` (previousListings, sezione VOD catch-up 292496, `forceStatus`).
+- **Middleware morto** `proxy.ts` (esportava `proxy`, Next.js esegue solo `middleware`), asset vecchi (`favicon-old.ico`, `icon-old.png`).
+- **NON rimosso** (verificato vivo): route `/prefs` + `prefs.ts` — chiamate dalla UI di `/configure` per le preferenze sport.
+
+**Ristrutturazione:**
+- `types/live.ts` → `lib/paramount/live.ts` e `types/sport-models.ts` → `lib/paramount/sport-models.ts` (contenevano logica, non tipi; `types/` ora ha solo gli shape API).
+- `catalogs.ts` mergiato in `sports.ts`: unica fonte del catalogo sport.
+- **StreamBuilder** (`lib/stremio/streams.ts`): pattern Builder per gli oggetti stream, elimina i 5 blocchi `streams.push({...})` duplicati.
+- CORS unificato via `withCors()` in catalog/meta/stream route; tipo stale `genre: "Live"|"Upcoming"|"Replay"` corretto.
+- README riscritto: rimossi IPTV/MFP/VOD (endpoint inesistenti), documentati DVR e vista live-only.
+
+**Stato**: 119/119 test verdi, tsc pulito, `next build` OK. Deploy git-based sulla VPS in fase di allineamento (vedi § divergenza git).

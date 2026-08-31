@@ -7,14 +7,14 @@ import {
     normalizeSportEvent,
     SportEvent,
     SportPrefs,
-} from "@/lib/paramount/types/sport-models";
+} from "@/lib/paramount/sport-models";
 import {
     applyPrefs,
     orderEventsByPriority,
     mapSportEventToMeta,
     makeFavoriteTeam,
 } from "@/lib/paramount/sports";
-import { CURATED_LEAGUE_KEYS, isCuratedLeague } from "@/lib/paramount/catalogs";
+import { CURATED_LEAGUE_KEYS, isCuratedLeague } from "@/lib/paramount/sports";
 
 describe("sport-models: teamKey", () => {
     it("normalizes a team name to a slug", () => {
@@ -129,10 +129,9 @@ describe("sport-models: normalizeSportEvent", () => {
         expect(normalizeSportEvent({ title: "y" }, null)).toBeNull();
     });
 
-    it("forceStatus overrides deriveStatus for replays (previousListings)", () => {
-        // Listing senza endMs (tipico dei previousListings di Paramount).
-        // Senza forceStatus sarebbe stato classificato come replay per via
-        // del nuovo deriveStatus, ma con forceStatus esplicito viene forzato.
+    it("derives replay for past events without endMs", () => {
+        // Listing senza endMs (tipico di Paramount): l'inizio e' nel passato
+        // quindi l'evento e' classificato come replay e filtrato dai cataloghi.
         const ev = normalizeSportEvent(
             {
                 id: "evt-rep",
@@ -142,30 +141,9 @@ describe("sport-models: normalizeSportEvent", () => {
                 streamStartTimestamp: 500, // passato
                 // streamEndTimestamp mancante
             },
-            null,
-            { forceStatus: "replay" }
+            null
         );
         expect(ev?.status).toBe("replay");
-    });
-
-    it("forceStatus='upcoming' does NOT override the derived status", () => {
-        // Per design, forceStatus='upcoming' e' ignorato: serve solo a forzare
-        // replay/live, non a promuovere eventi passati a upcoming.
-        // Usiamo un timestamp futuro lontano per essere certi che l'evento
-        // sia classificato come upcoming da deriveStatus.
-        const farFuture = Date.now() + 7 * 24 * 60 * 60 * 1000; // +7 giorni
-        const ev = normalizeSportEvent(
-            {
-                id: "evt-future",
-                title: "Future Match",
-                channelSlug: "serie-a",
-                channelName: "Serie A",
-                streamStartTimestamp: farFuture,
-            },
-            null,
-            { forceStatus: "upcoming" }
-        );
-        expect(ev?.status).toBe("upcoming");
     });
 });
 
@@ -311,44 +289,5 @@ describe("catalogs: Altro grouping (CURATED_LEAGUE_KEYS)", () => {
 
         expect(curated.map((e) => e.id).sort()).toEqual(["sa", "ucl", "uecl", "uel"]);
         expect(altro.map((e) => e.id).sort()).toEqual(["epl", "nba"]);
-    });
-});
-
-describe("sports: replay section filtering (fix EmptyContent on Replay)", () => {
-    it("keeps replay events even when startMs is in the past and endMs is missing", () => {
-        const pastStart = Date.now() - 24 * 60 * 60 * 1000;
-        const replay = makeEvent({
-            id: "evt-replay-1",
-            title: "Yesterday Match",
-            status: "replay",
-            startMs: pastStart,
-        });
-        const filtered = [replay].filter((e) => e.status === "replay");
-        expect(filtered).toHaveLength(1);
-        expect(filtered[0].id).toBe("evt-replay-1");
-    });
-
-    it("filters out live and upcoming from the Replay section", () => {
-        const live = makeEvent({ id: "live", status: "live" });
-        const upcoming = makeEvent({ id: "upcoming", status: "upcoming" });
-        const replay = makeEvent({ id: "rep", status: "replay" });
-        const filtered = [live, upcoming, replay].filter((e) => e.status === "replay");
-        expect(filtered.map((e) => e.id)).toEqual(["rep"]);
-    });
-
-    it("forceStatus='replay' propagates through normalizeSportEvent", () => {
-        const farFuture = Date.now() + 30 * 24 * 60 * 60 * 1000;
-        const ev = normalizeSportEvent(
-            {
-                id: "evt-rep",
-                title: "Rescheduled Replay",
-                channelSlug: "serie-a",
-                channelName: "Serie A",
-                streamStartTimestamp: farFuture,
-            },
-            null,
-            { forceStatus: "replay" }
-        );
-        expect(ev?.status).toBe("replay");
     });
 });
