@@ -33,7 +33,11 @@ function safeLower(s?: string) {
 }
 
 /**
- * Vista sports-only con UNICO catalogo "Sport" (dropdown con tutte le leghe).
+ * Vista sports-only con due cataloghi:
+ *  - "pplus_sports_home" (slider home "Live e Prossimi"): live+upcoming delle
+ *    4 leghe curate, raggruppati per lega nell'ordine fisso
+ *    Serie A → Champions → Europa → Conference.
+ *  - "pplus_sports" (dropdown con tutte le leghe).
  *
  * I replay Paramount+ sono DASH Widevine (DRM) e non riproducibili su Stremio
  * desktop (mpv) né in modo affidabile su web; live e DVR "From Start" sono
@@ -110,6 +114,18 @@ export async function getCatalogMetas(args: {
                 const leagueEvents = await getLeagueEvents(session, league.key, false);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
+        } else if (id === "pplus_sports_home") {
+            // Slider home "Live e Prossimi": live+upcoming delle 4 leghe curate,
+            // raggruppati per lega nell'ordine fisso di inserimento del Set:
+            // Serie A → Champions → Europa → Conference.
+            for (const leagueKey of CURATED_LEAGUE_KEYS) {
+                const leagueEvents = await getLeagueEvents(session, leagueKey, false);
+                events.push(
+                    ...applyPrefs(leagueEvents, prefs).filter(
+                        (e) => e.status === "live" || e.status === "upcoming"
+                    )
+                );
+            }
         } else if (id === "pplus_sports_live") {
             // Legacy (manifest in cache): slider home con le 4 leghe curate.
             for (const leagueKey of CURATED_LEAGUE_KEYS) {
@@ -140,12 +156,16 @@ export async function getCatalogMetas(args: {
 
         // Vista live+upcoming (niente replay DRM): prima i live, poi gli upcoming.
         events = events.filter((e) => e.status === "live" || e.status === "upcoming");
-        events.sort((a, b) => {
-            const la = a.status === "live" ? 0 : 1;
-            const lb = b.status === "live" ? 0 : 1;
-            if (la !== lb) return la - lb;
-            return (a.startMs ?? 0) - (b.startMs ?? 0);
-        });
+        if (id !== "pplus_sports_home") {
+            // Ordinamento globale: prima i live, poi gli upcoming per orario.
+            // (Lo slider home mantiene invece il raggruppamento per lega.)
+            events.sort((a, b) => {
+                const la = a.status === "live" ? 0 : 1;
+                const lb = b.status === "live" ? 0 : 1;
+                if (la !== lb) return la - lb;
+                return (a.startMs ?? 0) - (b.startMs ?? 0);
+            });
+        }
 
         const sportMetas = events.map(mapSportEventToMeta).filter(Boolean) as StremioMeta[];
 
