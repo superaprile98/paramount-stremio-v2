@@ -6,6 +6,24 @@ Setup **Docker-first**: l'addon gira in un container Docker con `docker compose`
 
 L'installer [`scripts/deploy-docker.sh`](../../scripts/deploy-docker.sh) rileva automaticamente il package manager: **Oracle Linux / RHEL / Fedora** → `dnf`; **Ubuntu / Debian** → `apt`. Entrambe le distro sono ufficialmente supportate sulle VM Always Free di Oracle Cloud.
 
+## ⚠️ Regola d'oro: deploy solo via git
+
+**Nessun file va mai modificato a mano sulla VPS** (niente `scp`, niente edit diretti): ogni modifica parte da un commit sul repo e arriva sulla VPS con un `git pull`. Questo evita le divergenze tra albero locale e deployment (accaduto storicamente: file deployati via `scp` mai committati, VPS ferma a commit vecchi).
+
+Il flusso di deploy è:
+
+```bash
+# 1) locale: commit + push
+git push origin main
+
+# 2) VPS: aggiorna e rebuilda (fetch + reset + compose up --build)
+sudo bash scripts/update-docker.sh
+```
+
+`update-docker.sh` fa `git fetch` + `git reset --hard origin/main` (preserva `.env`, i volumi Docker e riapplica da solo l'eventuale patch NPM al compose), poi rebuild e healthcheck. Se il `docker-compose.yml` locale era stato adattato per Nginx Proxy Manager, la patch viene riapplicata automaticamente dopo il reset.
+
+Le uniche eccezioni ammesse sulla VPS sono i file **fuori dal repo**: `.env` (gitignored) e `vpn-data/` (config sing-box generata dall'UI `/configure`).
+
 ## Perché Oracle Cloud Free Tier?
 
 - **Always Free**: 4 OCPU + 24 GB RAM totali nella tenancy, configurabili come 1×4 OCPU/24 GB oppure 4×1 OCPU/6 GB su VM.A1.Flex (ARM/Ampere A1).
