@@ -52,27 +52,6 @@ export interface SportListingItem {
     [key: string]: unknown;
 }
 
-/** Item di un catalogo movie/series (trending, search, dettaglio). */
-export interface VodItem {
-    contentId?: string;
-    showId?: string;
-    id?: string;
-    guid?: string;
-    title?: string;
-    name?: string;
-    description?: string;
-    longDescription?: string;
-    year?: number | string;
-    genres?: Array<{ name?: string } | string>;
-    filePathPoster?: string;
-    posterUrl?: string;
-    filePathLogo?: string;
-    type?: string;
-    contentType?: string;
-    mediaType?: string;
-    [key: string]: unknown;
-}
-
 /** Risposta del token di sessione Irdeto (streaming). */
 export interface IrdetoSessionToken {
     ls_session?: string;

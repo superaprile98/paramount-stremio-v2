@@ -67,7 +67,7 @@ export async function buildManifest(session: ParamountSession, baseUrl: string):
         logo,
         background,
         resources: ["catalog", "meta", "stream"],
-        types: ["movie", "series", "tv", "sport"],
+        types: ["tv", "sport"],
         idPrefixes: ["pplus:"],
         catalogs,
     };

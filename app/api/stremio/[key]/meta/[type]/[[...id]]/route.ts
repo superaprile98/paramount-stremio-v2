@@ -4,7 +4,6 @@ import { parsePplusId } from "@/lib/paramount/mapping";
 import { safeDecode, stripJsonSuffix } from "@/lib/paramount/utils";
 import { findSportEvent, mapSportEventToMeta } from "@/lib/paramount/sports";
 import { buildLiveMeta } from "@/lib/paramount/types/live";
-import { buildMovieMeta, buildSeriesMeta } from "@/lib/paramount/types/vod";
 
 export const runtime = "nodejs";
 
@@ -33,16 +32,6 @@ export async function GET(
 
     if (parsed.kind === "live" && type === "tv") {
         const meta = await buildLiveMeta(session, parsed.key);
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
-    }
-
-    if (parsed.kind === "movie" && type === "movie") {
-        const meta = await buildMovieMeta(session, parsed.key);
-        return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
-    }
-
-    if (parsed.kind === "series" && type === "series") {
-        const meta = await buildSeriesMeta(session, parsed.key);
         return NextResponse.json({ meta }, { status: 200, headers: { "Access-Control-Allow-Origin": "*" } });
     }
 

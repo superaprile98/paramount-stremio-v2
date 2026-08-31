@@ -53,23 +53,6 @@ function extractListings(data: any): any[] {
     return [];
 }
 
-/**
- * Estrae `previousListings` (replay) dalla risposta, gestendo sia la forma flat
- * che nested. Ritorna sempre un array (mai undefined).
- */
-function extractPreviousListings(data: any): any[] {
-    if (!data || typeof data !== "object") return [];
-    const candidates = [
-        data?.previousListings,
-        data?.data?.previousListings,
-        data?.data?.data?.previousListings,
-    ];
-    for (const c of candidates) {
-        if (Array.isArray(c)) return c;
-    }
-    return [];
-}
-
 function extractChannel(data: any): any {
     const ch = data?.channel ?? data?.data?.channel ?? data?.data?.data?.channel;
     if (Array.isArray(ch)) return ch[0];
@@ -183,239 +166,28 @@ export async function getSportLeagues(session: ParamountSession): Promise<SportL
 }
 
 /**
- * Mappa slug competizione -> sectionId VOD "Match Replays" (catch-up).
+ * Recupera gli eventi di una singola competizione (live + upcoming).
  *
- * NOTA: il sito Paramount+ usa una singola sezione globale (292496) per i
- * replay di tutti gli show sportivi. Lo slug nel path e' cosmetico: le
- * risposte tornano lo stesso catalogo a prescindere dallo slug. Quando un
- * futuro show avra' una sezione dedicata, bastera' aggiungerla qui.
- */
-const REPLAY_SECTION_ID_BY_SLUG: Record<string, number> = {
-    "serie-a": 292496,
-    "uefa-champions-league": 292496,
-    "uefa-europa-league": 292496,
-    "uefa-conference-league": 292496,
-    "uefa-super-cup": 292496,
-    "womens-champions-league": 292496,
-    "coppa-italia": 292496,
-    "english-football-league": 292496,
-    "efl-cup": 292496,
-    "scottish-professional-football-league": 292496,
-    "liga-profesional-argentina": 292496,
-    "brasileirao": 292496,
-    "nwsl": 292496,
-    "concacaf-champions-cup": 292496,
-    "concacaf-nations-league": 292496,
-    "afc-champions-league": 292496,
-    "us-open-cup": 292496,
-    "nfl-on-cbs": 292496,
-    "college-football": 292496,
-    "ncaa-mens-basketball": 292496,
-    "wnba": 292496,
-    "ufc": 292496,
-    "dana-white-contender-series": 292496,
-    "boxing": 292496,
-    "pga": 292496,
-    "masters": 292496,
-    "pbr-teams-series": 292496,
-    "sailgp": 292496,
-    "world-rugby": 292496,
-};
-
-const MATCH_REPLAYS_LIMIT = 50;
-
-/**
- * Nomi visualizzati per slug competizione, usati per filtrare i replay VOD
- * per `seriesTitle`. La sezione 292496 e' GLOBALE: contiene replay di tutte
- * le competizioni, quindi dobbiamo selezionare solo quelli della lega
- * richiesta (altrimenti ogni catalogo mostra gli stessi match).
- */
-const LEAGUE_DISPLAY_NAME_BY_SLUG: Record<string, string[]> = {
-    "serie-a": ["Serie A"],
-    "uefa-champions-league": ["UEFA Champions League", "Champions League"],
-    "uefa-europa-league": ["UEFA Europa League", "Europa League"],
-    "uefa-conference-league": ["UEFA Conference League", "Conference League"],
-    "uefa-super-cup": ["UEFA Super Cup"],
-    "womens-champions-league": ["UEFA Women's Champions League", "Women's Champions League"],
-    "coppa-italia": ["Coppa Italia"],
-    "english-football-league": ["English Football League", "EFL"],
-    "efl-cup": ["EFL Cup", "Carabao Cup"],
-    "scottish-professional-football-league": ["Scottish Professional Football League", "SPFL"],
-    "liga-profesional-argentina": ["Liga Profesional Argentina"],
-    "brasileirao": ["Brasileirão", "Brasileirao"],
-    "nwsl": ["NWSL"],
-    "concacaf-champions-cup": ["Concacaf Champions Cup"],
-    "concacaf-nations-league": ["Concacaf Nations League"],
-    "afc-champions-league": ["AFC Champions League"],
-    "us-open-cup": ["US Open Cup"],
-    "nfl-on-cbs": ["NFL on CBS", "NFL"],
-    "college-football": ["College Football"],
-    "ncaa-mens-basketball": ["NCAA Men's Basketball"],
-    "wnba": ["WNBA"],
-    "ufc": ["UFC"],
-    "dana-white-contender-series": ["Dana White's Contender Series"],
-    "boxing": ["Boxing"],
-    "pga": ["PGA Tour", "PGA"],
-    "masters": ["Masters"],
-    "pbr-teams-series": ["PBR Teams Series"],
-    "sailgp": ["SailGP"],
-    "world-rugby": ["World Rugby"],
-};
-
-/** Normalizza un nome per il confronto (lowercase, senza accenti, spazi collassati). */
-function normalizeName(s: string): string {
-    return s
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
-}
-
-/**
- * Ritorna true se il `seriesTitle` di un item VOD appartiene alla competizione
- * richiesta (slug). Fallback: se lo slug non e' nella mappa, confronta con il
- * nome della lega derivato dal canale live.
- */
-function vodSeriesMatchesSlug(
-    seriesTitle: string | undefined,
-    slug: string,
-    leagueName?: string
-): boolean {
-    if (!seriesTitle) return false;
-    const t = normalizeName(seriesTitle);
-    if (!t) return false;
-
-    const candidates = [...(LEAGUE_DISPLAY_NAME_BY_SLUG[slug] ?? []), leagueName].filter(
-        (n): n is string => typeof n === "string" && n.length > 0
-    );
-    for (const c of candidates) {
-        const n = normalizeName(c);
-        if (!n) continue;
-        if (n === t) return true;
-        // Match parziale: "Serie A" vs "Serie A Enilive" / "Champions League" vs "UEFA Champions League".
-        if (n.length >= 4 && t.length >= 4 && (t.includes(n) || n.includes(t))) return true;
-    }
-    return false;
-}
-
-interface VodReplayItem {
-    contentId?: string;
-    title?: string;
-    label?: string;
-    seriesTitle?: string;
-    airDate?: number;
-    thumb?: string;
-    description?: string;
-    href?: string;
-    primaryCategoryName?: string;
-    [key: string]: unknown;
-}
-
-/** Estrae l'array di item VOD dalla risposta "show section" (varia nei wrapper). */
-function extractShowSectionItems(data: any): VodReplayItem[] {
-    if (!data || typeof data !== "object") return [];
-    const candidates = [
-        data?.result?.data,
-        data?.data?.result?.data,
-        data?.data?.data,
-        data?.items,
-        data?.result?.items,
-    ];
-    for (const c of candidates) {
-        if (Array.isArray(c)) return c as VodReplayItem[];
-    }
-    return [];
-}
-
-/** Normalizza un item VOD "Match Replays" in un SportEvent (status forzato a "replay"). */
-function normalizeVodReplayEvent(
-    e: VodReplayItem,
-    league: SportLeague | null
-): SportEvent | null {
-    const contentId = e?.contentId;
-    const rawTitle = e?.label ?? e?.title;
-    if (!contentId || !rawTitle) return null;
-
-    // Alcuni titoli sono gia' "Full Match Replay: A vs. B": puliamo il prefisso
-    // per riusare `parseTeams` (riconosce "A vs. B").
-    const cleanTitle = String(rawTitle).replace(/^Full Match Replay:\s*/i, "").trim();
-    if (!cleanTitle) return null;
-
-    const startMs = typeof e.airDate === "number" ? e.airDate : undefined;
-    const fallbackLeague: SportLeague = league ?? {
-        key: String(e?.seriesTitle ?? "sport").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-        name: String(e?.seriesTitle ?? "Sport"),
-        sport: "other",
-        kind: "league",
-    };
-
-    return {
-        id: String(contentId),
-        title: cleanTitle,
-        sport: fallbackLeague.sport,
-        league: fallbackLeague,
-        teams: parseTeams(cleanTitle),
-        status: "replay",
-        startMs,
-        endMs: undefined,
-        // Per i replay VOD il `contentId` e' anche il video content id
-        // (vedi `resolveSportEventStream`).
-        videoContentId: String(contentId),
-        posterUrl: typeof e.thumb === "string" ? e.thumb : undefined,
-        logoUrl: undefined,
-        description: typeof e.description === "string" ? e.description : undefined,
-        raw: e,
-    };
-}
-
-/**
- * Recupera gli eventi di una singola competizione (live + upcoming + replay).
- *
- * - Live/upcoming: dall'endpoint live listings (es. `/v3.0/androidtv/live/channels/{slug}/listings.json`).
- * - Replay: dall'endpoint pubblico `/shows/{slug}/xhr/sectionId/{sid}/...` (VOD catch-up),
- *   che contiene fino a ~50 match replay recenti per competizione.
- *
- * NOTA: gli eventi replay hanno `forceStatus = "replay"` per evitare che, in
- * assenza di endTimestamp, vengano classificati come live/upcoming.
+ * Vista live-only: i replay Paramount+ sono DASH Widevine (DRM) e non
+ * riproducibili su Stremio, quindi non vengono recuperati dal VOD catch-up.
+ * Gli eventi passati derivano comunque a status "replay" e vengono filtrati
+ * dai cataloghi.
  */
 export async function getLeagueEvents(
     session: ParamountSession,
-    slug: string,
-    includeReplays = true
+    slug: string
 ): Promise<SportEvent[]> {
-    const cacheKey = `${sessionFingerprint(session)}::${slug}::${includeReplays}`;
+    const cacheKey = `${sessionFingerprint(session)}::${slug}`;
     const cached = leagueListingsCache.get(cacheKey);
     if (cached && Date.now() < cached.expiresAt) return cached.data;
 
     const client = new ParamountClient();
     await client.setSession(session);
 
-    // 1) Live + upcoming
     const liveData = await client.getSportLeagueListings(slug);
     const channel = extractChannel(liveData);
     const league = normalizeLeague(channel);
     const current = extractListings(liveData);
-    const previous = includeReplays ? extractPreviousListings(liveData) : [];
-
-    // 2) Replay via VOD catch-up (sezione "Match Replays").
-    let vodItems: VodReplayItem[] = [];
-    if (includeReplays) {
-        const sectionId = REPLAY_SECTION_ID_BY_SLUG[slug];
-        if (sectionId !== undefined) {
-            try {
-                const vodData = await client.getShowSection(slug, sectionId, {
-                    offset: 0,
-                    limit: MATCH_REPLAYS_LIMIT,
-                });
-                vodItems = extractShowSectionItems(vodData);
-            } catch (err: any) {
-                console.warn(
-                    `[sports] getShowSection failed for slug=${slug} sectionId=${sectionId}: ${err?.message ?? err}`
-                );
-            }
-        }
-    }
 
     const events: SportEvent[] = [];
 
@@ -437,28 +209,11 @@ export async function getLeagueEvents(
             .join(" | ")
     );
 
-    // Eventi `previousListings` (raramente popolato, ma lo manteniamo per compatibilita').
-    for (const e of previous) {
-        const ev = normalizeSportEvent(e, league, { forceStatus: "replay" });
-        if (ev) events.push(ev);
-    }
-
-    // Eventi VOD catch-up: status forzato a "replay".
-    // La sezione 292496 e' GLOBALE: filtriamo per `seriesTitle` in modo che
-    // ogni catalogo mostri solo i replay della propria competizione.
-    for (const e of vodItems) {
-        if (!vodSeriesMatchesSlug(e.seriesTitle, slug, league?.name)) continue;
-        const ev = normalizeVodReplayEvent(e, league);
-        if (ev) events.push(ev);
-    }
-
-    // Ordina: live prima, poi upcoming (più vicini prima), replay dal più recente al meno recente.
+    // Ordina: live prima, poi upcoming (più vicini prima).
     events.sort((a, b) => {
-        const order = (s?: string) => (s === "live" ? 0 : s === "upcoming" ? 1 : s === "replay" ? 2 : 3);
-        const oa = order(a.status);
-        const ob = order(b.status);
-        if (oa !== ob) return oa - ob;
-        if (a.status === "replay") return (b.startMs ?? 0) - (a.startMs ?? 0);
+        const la = a.status === "live" ? 0 : 1;
+        const lb = b.status === "live" ? 0 : 1;
+        if (la !== lb) return la - lb;
         return (a.startMs ?? 0) - (b.startMs ?? 0);
     });
 
@@ -535,7 +290,7 @@ export async function findSportEvent(
 ): Promise<SportEvent | null> {
     const leagues = await getSportLeagues(session);
     for (const league of leagues) {
-        const events = await getLeagueEvents(session, league.key, true);
+        const events = await getLeagueEvents(session, league.key);
         const found = events.find((ev) => ev.id === listingId);
         if (found) return found;
     }

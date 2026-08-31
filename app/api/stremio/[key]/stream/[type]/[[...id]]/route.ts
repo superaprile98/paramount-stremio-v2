@@ -13,7 +13,6 @@ import {
 import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports";
 import type { SportEvent } from "@/lib/paramount/types/sport-models";
 import { resolveLiveStream } from "@/lib/paramount/types/live";
-import { resolveVodStream } from "@/lib/paramount/types/vod";
 import { httpClient } from "@/lib/http/client";
 import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls"
 
@@ -62,8 +61,6 @@ export async function GET(
         streamData = sportEvent ? await resolveSportEventStream(session, sportEvent) : null;
     } else if (parsed.kind === "live") {
         streamData = await resolveLiveStream(session, parsed.key);
-    } else if (parsed.kind === "movie" || parsed.kind === "series") {
-        streamData = await resolveVodStream(session, parsed.key);
     }
     if (!streamData) return NextResponse.json({ streams: [] }, { status: 200 });
 

@@ -1,7 +1,6 @@
 import { ParamountSession } from "@/lib/paramount/client";
 import { StremioMeta } from "@/lib/stremio/types";
 import { getLiveListing, mapLiveListingToMeta } from "@/lib/paramount/types/live";
-import { getTrendingMovies, getTrendingShows, searchVod } from "@/lib/paramount/types/vod";
 import {
     getSportLeagues,
     getLeagueEvents,
@@ -67,22 +66,6 @@ export async function getCatalogMetas(args: {
     const genre = extra?.genre;
     const pageSize = 100;
 
-    //VOD — Movies
-    if (type === "movie" && id === "pplus_movies") {
-        const movies = search
-            ? await searchVod(session, search)
-            : await getTrendingMovies(session);
-        return movies.slice(skip, skip + pageSize);
-    }
-
-    //VOD — Series
-    if (type === "series" && id === "pplus_series") {
-        const shows = search
-            ? await searchVod(session, search)
-            : await getTrendingShows(session);
-        return shows.slice(skip, skip + pageSize);
-    }
-
     //Live
     if (type === "tv" && id === "pplus_live") {
         const liveListings = await getLiveListing(session);
@@ -111,7 +94,7 @@ export async function getCatalogMetas(args: {
                     : leagues;
 
             for (const league of targetLeagues) {
-                const leagueEvents = await getLeagueEvents(session, league.key, false);
+                const leagueEvents = await getLeagueEvents(session, league.key);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
         } else if (id === "pplus_sports_home") {
@@ -119,7 +102,7 @@ export async function getCatalogMetas(args: {
             // raggruppati per lega nell'ordine fisso di inserimento del Set:
             // Serie A → Champions → Europa → Conference.
             for (const leagueKey of CURATED_LEAGUE_KEYS) {
-                const leagueEvents = await getLeagueEvents(session, leagueKey, false);
+                const leagueEvents = await getLeagueEvents(session, leagueKey);
                 events.push(
                     ...applyPrefs(leagueEvents, prefs).filter(
                         (e) => e.status === "live" || e.status === "upcoming"
@@ -129,7 +112,7 @@ export async function getCatalogMetas(args: {
         } else if (id === "pplus_sports_live") {
             // Legacy (manifest in cache): slider home con le 4 leghe curate.
             for (const leagueKey of CURATED_LEAGUE_KEYS) {
-                const leagueEvents = await getLeagueEvents(session, leagueKey, false);
+                const leagueEvents = await getLeagueEvents(session, leagueKey);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
         } else if (id === "pplus_sports_other") {
@@ -144,13 +127,13 @@ export async function getCatalogMetas(args: {
                 : leagues.filter((l) => !CURATED_LEAGUE_KEYS.has(l.key));
 
             for (const league of targetLeagues) {
-                const leagueEvents = await getLeagueEvents(session, league.key, false);
+                const leagueEvents = await getLeagueEvents(session, league.key);
                 events.push(...applyPrefs(leagueEvents, prefs));
             }
         } else {
             // Legacy (manifest in cache): pplus_sports_<leagueKey>, una singola competizione.
             const leagueKey = id.slice("pplus_sports_".length);
-            const leagueEvents = await getLeagueEvents(session, leagueKey, false);
+            const leagueEvents = await getLeagueEvents(session, leagueKey);
             events = applyPrefs(leagueEvents, prefs);
         }
 
