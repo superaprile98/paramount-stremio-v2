@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
 import { getCatalogMetas } from "@/lib/paramount/sports";
 import { safeDecode } from "@/lib/paramount/utils";
+import { withCors } from "@/lib/stremio/cors";
 
 export const runtime = "nodejs";
 
@@ -16,9 +17,8 @@ function parseExtras(extra?: string[]) {
     return {
         search: out.search ? out.search.replace('.json', '') : "",
         skip: out.skip ? Number(out.skip.replace('.json', '')) : 0,
-        // genre puo' essere uno stato (Live/Upcoming/Replay) oppure il nome
-        // di una lega (per il catalogo "Altro" con dropdown per lega).
-        genre: rawGenre as "Live" | "Upcoming" | "Replay" | undefined,
+        // genre: "Tutte" (default) oppure il nome di una lega dal dropdown.
+        genre: rawGenre,
     };
 }
 
@@ -42,5 +42,5 @@ export async function GET(
         extra: parsed,
     });
 
-    return NextResponse.json({ metas }, { headers: { "Access-Control-Allow-Origin": "*" } });
+    return withCors(NextResponse.json({ metas }));
 }

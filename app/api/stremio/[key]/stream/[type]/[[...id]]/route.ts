@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ParamountClient } from "@/lib/paramount/client";
+import { withCors } from "@/lib/stremio/cors";
 import { parsePplusId } from "@/lib/paramount/mapping";
 import {
     buildCookieHeader,
@@ -153,14 +154,16 @@ export async function GET(
         }
     }
 
-    return NextResponse.json({ streams }, {
-        status: 200, headers: {
-            "Allow": "GET, HEAD, OPTIONS",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
-            "Content-Type": "application/json",
-        }
-    });
+    return withCors(
+        NextResponse.json(
+            { streams },
+            {
+                status: 200,
+                headers: {
+                    "Allow": "GET, HEAD, OPTIONS",
+                    "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+                },
+            }
+        )
+    );
 }
