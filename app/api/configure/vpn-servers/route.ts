@@ -25,6 +25,7 @@ function maskInput(entry: VpnServerEntry) {
         kind: entry.kind,
         serverTag: entry.serverTag,
         addedAt: entry.addedAt,
+        lastSpeedTest: entry.lastSpeedTest ?? null,
     };
 }
 

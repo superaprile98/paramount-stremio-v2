@@ -13,10 +13,8 @@ import {
  */
 export async function POST(req: NextRequest) {
     if (!isConfigureAuthConfigured()) {
-        return NextResponse.json(
-            { ok: false, error: "Configure auth non configurata: impostare CONFIG_CREDENTIALS (o CONFIG_USER/CONFIG_PASSWORD) in .env" },
-            { status: 503 }
-        );
+        // Messaggio volutamente generico: non svelare dettagli di setup
+        return NextResponse.json({ ok: false, error: "Servizio non disponibile" }, { status: 503 });
     }
 
     const body = await req.json().catch(() => null);

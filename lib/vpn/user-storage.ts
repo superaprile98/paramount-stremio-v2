@@ -3,6 +3,7 @@ import path from 'path';
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 import { VPN_DATA_PATHS } from '@/lib/vpn/storage';
 import type { ParsedServer } from '@/lib/vpn/share-links';
+import type { SpeedTestResult } from '@/lib/vpn/speedtest';
 
 /**
  * Storage per-utente della lista VLESS (cifrato AES-256-GCM con KEY_SECRET).
@@ -25,6 +26,8 @@ export interface VpnServerEntry {
     addedAt: string;
     /** Server risolti (cache): evita di rifare il fetch della subscription a ogni switch. */
     resolvedServers?: ParsedServer[];
+    /** Ultimo speed test eseguito sulla voce (solo se attiva). */
+    lastSpeedTest?: SpeedTestResult;
 }
 
 export interface UserVpnStore {

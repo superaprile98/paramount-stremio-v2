@@ -72,10 +72,29 @@ export function VpnSetupCard({
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
     // Lista VLESS salvata per l'utente (per-utente, cifrata su disco)
-    type SavedServer = { id: string; label: string; kind: string; serverTag: string; addedAt: string };
+    type SavedSpeedTest = { at: string; downMbps: number; upMbps: number; latencyMs: number; grade: string; error?: string };
+    type SavedServer = { id: string; label: string; kind: string; serverTag: string; addedAt: string; lastSpeedTest?: SavedSpeedTest | null };
     const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [switchingId, setSwitchingId] = useState<string | null>(null);
+    const [testingId, setTestingId] = useState<string | null>(null);
+
+    async function speedTest(id: string) {
+        setTestingId(id);
+        try {
+            const r = await fetch("/api/configure/vpn-speedtest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id }),
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            const t = j.result;
+            onToast(`⚡ Down ${t.downMbps} Mbps · Up ${t.upMbps} Mbps · ${t.latencyMs} ms`);
+            await refreshSaved();
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        finally { setTestingId(null); }
+    }
 
     async function refreshSaved() {
         try {
@@ -399,30 +418,47 @@ export function VpnSetupCard({
                     <p className="text-xs font-semibold text-gray-700 mb-2">
                         💾 Server salvati ({savedServers.length}) — clicca per cambiare tunnel
                     </p>
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
                         {savedServers.map((s) => (
                             <div key={s.id}
-                                className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
+                                className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
                                     ? "border-emerald-400 bg-emerald-50"
                                     : "border-gray-200 bg-white hover:bg-gray-100"
                                     }`}>
-                                <button
-                                    onClick={() => switchServer(s.id)}
-                                    disabled={switchingId !== null}
-                                    className="flex-1 text-left disabled:opacity-50"
-                                    title="Attiva questo tunnel">
-                                    <span className="font-semibold text-gray-900">
-                                        {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
-                                    </span>
-                                    <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
-                                        {s.kind}
-                                    </span>
-                                </button>
-                                <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                    className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
-                                    title="Rimuovi dalla lista">
-                                    🗑️
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => switchServer(s.id)}
+                                        disabled={switchingId !== null}
+                                        className="flex-1 text-left disabled:opacity-50"
+                                        title="Attiva questo tunnel">
+                                        <span className="font-semibold text-gray-900">
+                                            {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
+                                        </span>
+                                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
+                                            {s.kind}
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={() => speedTest(s.id)}
+                                        disabled={testingId !== null || s.id !== activeId}
+                                        className="rounded px-1.5 py-0.5 hover:bg-blue-50 disabled:opacity-30"
+                                        title={s.id === activeId ? "Testa velocità del tunnel attivo" : "Attiva il server per testarlo"}>
+                                        {testingId === s.id ? "⏳" : "⚡"}
+                                    </button>
+                                    <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                        className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                        title="Rimuovi dalla lista">
+                                        🗑️
+                                    </button>
+                                </div>
+                                {s.lastSpeedTest && (
+                                    <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-500">
+                                        <span className="font-semibold text-gray-700">{s.lastSpeedTest.grade}</span>
+                                        <span>↓ {s.lastSpeedTest.downMbps} Mbps</span>
+                                        <span>↑ {s.lastSpeedTest.upMbps} Mbps</span>
+                                        <span>{s.lastSpeedTest.latencyMs} ms</span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

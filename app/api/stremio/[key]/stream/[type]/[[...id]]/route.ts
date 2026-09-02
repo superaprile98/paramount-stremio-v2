@@ -97,9 +97,12 @@ export async function GET(
         const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers, client.getSessionProxyUrl() ?? undefined);
         const audioTracks = masterM3u8 ? splitAudioTracks(masterM3u8) : [];
         const multiLang = audioTracks.length >= 2;
-        // Lingua preferita (ita → eng → DEFAULT → prima): applicata agli
-        // stream Auto/quality/DVR senza lang esplicito.
-        const preferredLang = multiLang ? pickPreferredLang(audioTracks) : null;
+        // Lingua preferita (ita → eng → DEFAULT → prima) anche con un solo
+        // audio: senza `lang` il player potrebbe scegliere una traccia diversa.
+        const preferredLang = audioTracks.length >= 1 ? pickPreferredLang(audioTracks) : null;
+        const preferredTrack = preferredLang
+            ? audioTracks.find((t) => t.language === preferredLang) ?? null
+            : null;
 
         // Base proxy URL (immutable reference — clone per variante)
         const proxyBase = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/hls`);
@@ -107,9 +110,13 @@ export async function GET(
         proxyBase.searchParams.set("t", Buffer.from(lsSession.toString()).toString("base64url"));
         if (preferredLang) proxyBase.searchParams.set("lang", preferredLang);
 
-        // Auto quality stream
+        // Auto quality stream (con label lingua se nota, anche mono-audio)
         streams.push(
-            hlsStream(`${streamingTitle} \n🗣️ Auto \n🎞 HLS (Auto quality)`, proxyBase, isLiveEvent)
+            hlsStream(
+                `${streamingTitle} \n🗣️ ${preferredTrack?.name ?? "Auto"} \n🎞 HLS (Auto quality)`,
+                proxyBase,
+                isLiveEvent
+            )
         );
 
         // DVR "from start" per eventi sportivi live: il CDN conserva tutti i
@@ -142,7 +149,11 @@ export async function GET(
                 const qUrl = new URL(proxyBase.toString());
                 qUrl.searchParams.set("b", String(variant.bandwidth));
                 streams.push(
-                    hlsStream(`${streamingTitle} \n🗣️ Auto \n🎞 HLS (${variant.quality})`, qUrl, isLiveEvent)
+                    hlsStream(
+                        `${streamingTitle} \n🗣️ ${preferredTrack?.name ?? "Auto"} \n🎞 HLS (${variant.quality})`,
+                        qUrl,
+                        isLiveEvent
+                    )
                 );
 
                 if (multiLang) {
