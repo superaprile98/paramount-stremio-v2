@@ -81,17 +81,17 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
         hostHint = `${u.hostname}${u.port ? ":" + u.port : ""}`;
     } catch { }
     return (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
             <div className="flex items-start justify-between gap-2">
                 <p className="font-semibold">⚠️ Local address detected</p>
-                <button onClick={onDismiss} className="rounded-md px-2 text-amber-900/70 hover:bg-amber-100">✕</button>
+                <button onClick={onDismiss} className="rounded-md px-2 text-amber-900/70 hover:bg-amber-100 dark:text-amber-300/70 dark:hover:bg-amber-900/40">✕</button>
             </div>
             <p className="mt-1">
-                The manifest URL points to <code className="rounded bg-amber-100 px-1 font-mono">{manifestUrl}</code>.
-                Stremio on other devices cannot reach <code className="rounded bg-amber-100 px-1">{hostHint}</code>.
+                The manifest URL points to <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{manifestUrl}</code>.
+                Stremio on other devices cannot reach <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/40">{hostHint}</code>.
             </p>
             <p className="mt-2">
-                Set <code className="rounded bg-amber-100 px-1">BASE_URL</code> to a public URL and restart.
+                Set <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/40">BASE_URL</code> to a public URL and restart.
             </p>
         </div>
     );
@@ -324,7 +324,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                 />
                                 <div className="relative">
                                     <input
@@ -335,12 +335,12 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword((v) => !v)}
-                                        className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100"
+                                        className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                                     >
                                         {showPassword ? "Hide" : "Show"}
                                     </button>
@@ -348,7 +348,7 @@ export default function ConfigurePage() {
                             </div>
 
                             {error && (
-                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
                                     {error}
                                 </div>
                             )}
@@ -366,27 +366,27 @@ export default function ConfigurePage() {
                             </p>
 
                             {/* Device code alternative */}
-                            <div className="border-t border-gray-200 pt-3">
+                            <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
                                 <button
                                     onClick={() => { setShowDevice(!showDevice); if (!showDevice) startDevice(); }}
-                                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                                    className="text-xs text-gray-500 hover:text-gray-700 underline dark:text-gray-400 dark:hover:text-gray-200"
                                 >
                                     {showDevice ? "Hide device code login" : "Alternative: activate with device code"}
                                 </button>
 
                                 {showDevice && activationCode && !manifestUrl && (
                                     <div className="mt-3 space-y-2">
-                                        <div className="rounded-xl bg-gray-100 p-3 text-center">
-                                            <p className="text-xs text-gray-500 mb-1">Go to</p>
+                                        <div className="rounded-xl bg-gray-100 p-3 text-center dark:bg-gray-900">
+                                            <p className="text-xs text-gray-500 mb-1 dark:text-gray-400">Go to</p>
                                             <a href="https://www.paramountplus.com/activate/androidtv/" target="_blank" rel="noreferrer"
-                                                className="text-blue-600 text-sm font-medium break-all">
+                                                className="text-blue-600 text-sm font-medium break-all dark:text-blue-400">
                                                 paramountplus.com/activate/androidtv
                                             </a>
-                                            <p className="text-xs text-gray-500 mt-1">and enter this code:</p>
-                                            <p className="text-3xl font-black tracking-[6px] text-gray-900 mt-1">{activationCode}</p>
+                                            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">and enter this code:</p>
+                                            <p className="text-3xl font-black tracking-[6px] text-gray-900 mt-1 dark:text-gray-100">{activationCode}</p>
                                             <p className="text-xs text-gray-400 mt-1">Checking every 3 seconds...</p>
                                         </div>
-                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                                             ⚠️ US account required. If outside the US, the activation page will redirect you
                                             and the code won&rsquo;t work. Use the password login instead.
                                         </div>
@@ -405,7 +405,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                 />
                                 <div className="relative">
                                     <input
@@ -416,19 +416,19 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword((v) => !v)}
-                                        className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100"
+                                        className="absolute inset-y-0 right-2 my-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                                     >
                                         {showPassword ? "Hide" : "Show"}
                                     </button>
                                 </div>
                             </div>
                             {error && (
-                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
                                     {error}
                                 </div>
                             )}
@@ -442,7 +442,7 @@ export default function ConfigurePage() {
                                 </button>
                                 <button
                                     onClick={() => { setLoginEditing(false); setError(null); setPassword(""); }}
-                                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                                 >
                                     Cancel
                                 </button>
@@ -450,11 +450,11 @@ export default function ConfigurePage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            <p className="text-sm text-gray-600">You are signed in. Your session is valid for 1 year.</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">You are signed in. Your session is valid for 1 year.</p>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => { setLoginEditing(true); setError(null); }}
-                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                                 >
                                     ✏️ Modifica
                                 </button>
@@ -479,7 +479,7 @@ export default function ConfigurePage() {
                                     onChange={(e) => setNewTeam(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && onAddTeam()}
                                     placeholder="Team name, e.g. Inter"
-                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500"
+                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                                 />
                                 <button
                                     onClick={onAddTeam}
@@ -500,8 +500,8 @@ export default function ConfigurePage() {
                                             onClick={() => onQuickAddTeam(name)}
                                             disabled={already}
                                             className={`rounded-full border px-2.5 py-0.5 text-xs transition ${already
-                                                ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                : "border-blue-300 bg-white text-blue-700 hover:bg-blue-50"}`}
+                                                ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+                                                : "border-blue-300 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"}`}
                                         >
                                             {already ? `✓ ${name}` : `+ ${name}`}
                                         </button>
@@ -512,7 +512,7 @@ export default function ConfigurePage() {
                             {prefs && prefs.favoriteTeams.length > 0 && (
                                 <div className="flex flex-wrap gap-2">
                                     {prefs.favoriteTeams.map((t) => (
-                                        <span key={t.key} className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-sm">
+                                        <span key={t.key} className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-sm dark:border-blue-800 dark:bg-gray-900">
                                             ⭐ {t.name}
                                             <button onClick={() => onRemoveTeam(t.key)} className="text-gray-400 hover:text-red-500">✕</button>
                                         </span>
@@ -530,13 +530,13 @@ export default function ConfigurePage() {
                             {leagues.map((l) => {
                                 const hidden = prefs?.hiddenLeagues.includes(l.key) ?? false;
                                 return (
-                                    <label key={l.key} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-                                        <span className={hidden ? "text-gray-400 line-through" : "text-gray-800"}>{l.name}</span>
+                                    <label key={l.key} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
+                                        <span className={hidden ? "text-gray-400 line-through" : "text-gray-800 dark:text-gray-200"}>{l.name}</span>
                                         <button
                                             onClick={() => onToggleLeague(l.key, hidden)}
                                             className={`rounded-full px-3 py-1 text-xs font-medium transition ${hidden
-                                                ? "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                                                : "bg-black text-white hover:bg-black/85"}`}
+                                                ? "bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                                                : "bg-black text-white hover:bg-black/85 dark:bg-blue-600 dark:hover:bg-blue-700"}`}
                                         >
                                             {hidden ? "Show" : "Hide"}
                                         </button>
@@ -557,9 +557,9 @@ export default function ConfigurePage() {
                     {manifestUrl && vpnActive ? (
                         <div className="space-y-3">
                             {installUrl && (
-                                <div className="rounded-xl bg-gray-50 p-3">
-                                    <p className="text-xs text-gray-500 mb-1">Install URL</p>
-                                    <code className="text-sm text-gray-800 break-all font-mono">{installUrl}</code>
+                                <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900">
+                                    <p className="text-xs text-gray-500 mb-1 dark:text-gray-400">Install URL</p>
+                                    <code className="text-sm text-gray-800 break-all font-mono dark:text-gray-200">{installUrl}</code>
                                 </div>
                             )}
 
@@ -568,8 +568,8 @@ export default function ConfigurePage() {
                                     href={stremioInstallUrl || "#"}
                                     onClick={(e) => !stremioInstallUrl && e.preventDefault()}
                                     className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${stremioInstallUrl
-                                        ? "bg-black text-white hover:bg-black/85"
-                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                                        ? "bg-black text-white hover:bg-black/85 dark:bg-blue-600 dark:hover:bg-blue-700"
+                                        : "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"}`}
                                 >
                                     ⚡ Install in Stremio
                                 </a>
@@ -577,7 +577,7 @@ export default function ConfigurePage() {
                                 <button
                                     onClick={onCopyInstallUrl}
                                     disabled={!installUrl}
-                                    className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-200 disabled:opacity-50"
+                                    className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
                                 >
                                     Copy URL
                                 </button>
@@ -604,7 +604,7 @@ export default function ConfigurePage() {
                             </div>
                             <button
                                 disabled
-                                className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2"
+                                className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2 dark:bg-gray-800 dark:text-gray-600"
                             >
                                 ⚡ Install in Stremio
                             </button>
@@ -618,10 +618,10 @@ export default function ConfigurePage() {
             </div>
 
             {/* ===== FOOTER ===== */}
-            <footer className="w-full border-t border-gray-200 bg-white py-6 mt-10">
+            <footer className="w-full border-t border-gray-200 bg-white py-6 mt-10 dark:border-gray-800 dark:bg-gray-950">
                 <div className="mx-auto max-w-2xl px-4 text-center">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Legal Disclaimer</p>
-                    <p className="text-xs leading-relaxed text-gray-500">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2 dark:text-gray-500">Legal Disclaimer</p>
+                    <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                         This add-on is an unofficial tool and is not affiliated with, endorsed by, or associated with
                         Paramount Global or its subsidiaries. It is intended for personal use only. Users are responsible
                         for ensuring they have a valid subscription. We do not host or provide any media content; this tool
@@ -629,9 +629,9 @@ export default function ConfigurePage() {
                         under Paramount&rsquo;s terms. Use at your own discretion.
                     </p>
                     <div className="mt-2">
-                        <a href="https://github.com/RioNoir/paramount-stremio" className="text-xs text-purple-900 hover:underline">Source Code</a>
-                        <span className="mx-2 text-gray-300">•</span>
-                        <a href="https://buymeacoffee.com/rionoir" className="text-xs text-purple-900 hover:underline">Buy me a coffee</a>
+                        <a href="https://github.com/RioNoir/paramount-stremio" className="text-xs text-purple-900 hover:underline dark:text-purple-400">Source Code</a>
+                        <span className="mx-2 text-gray-300 dark:text-gray-700">•</span>
+                        <a href="https://buymeacoffee.com/rionoir" className="text-xs text-purple-900 hover:underline dark:text-purple-400">Buy me a coffee</a>
                     </div>
                 </div>
             </footer>

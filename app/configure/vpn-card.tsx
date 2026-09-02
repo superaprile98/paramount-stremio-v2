@@ -247,18 +247,18 @@ export function VpnSetupCard({
 
     function gradeColor(grade: string): { bg: string; text: string; label: string } {
         const g = grade.toLowerCase();
-        if (g.startsWith("ottima") || g.includes("🏆")) return { bg: "bg-emerald-100", text: "text-emerald-700", label: "🏆 Velocità ottima" };
-        if (g.startsWith("buona") || g.includes("✅")) return { bg: "bg-green-100", text: "text-green-700", label: "✅ Velocità buona" };
-        if (g.startsWith("discreta") || g.includes("⚠️")) return { bg: "bg-amber-100", text: "text-amber-700", label: "⚠️ Velocità discreta" };
-        return { bg: "bg-red-100", text: "text-red-700", label: "❌ Velocità scarsa" };
+        if (g.startsWith("ottima") || g.includes("🏆")) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: "🏆 Velocità ottima" };
+        if (g.startsWith("buona") || g.includes("✅")) return { bg: "bg-green-100 dark:bg-green-900/40", text: "text-green-700 dark:text-green-300", label: "✅ Velocità buona" };
+        if (g.startsWith("discreta") || g.includes("⚠️")) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: "⚠️ Velocità discreta" };
+        return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: "❌ Velocità scarsa" };
     }
 
     function delayColor(ms: number | null | undefined): { bg: string; text: string; label: string } {
-        if (ms == null) return { bg: "bg-gray-100", text: "text-gray-500", label: "— ms" };
-        if (ms <= 150) return { bg: "bg-emerald-100", text: "text-emerald-700", label: `🟢 ${ms} ms` };
-        if (ms <= 300) return { bg: "bg-amber-100", text: "text-amber-700", label: `🟡 ${ms} ms` };
-        if (ms <= 600) return { bg: "bg-orange-100", text: "text-orange-700", label: `🟠 ${ms} ms` };
-        return { bg: "bg-red-100", text: "text-red-700", label: `🔴 ${ms} ms` };
+        if (ms == null) return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-500 dark:text-gray-400", label: "— ms" };
+        if (ms <= 150) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: `🟢 ${ms} ms` };
+        if (ms <= 300) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: `🟡 ${ms} ms` };
+        if (ms <= 600) return { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300", label: `🟠 ${ms} ms` };
+        return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: `🔴 ${ms} ms` };
     }
 
     /* ── VLESS / subscription ── */
@@ -373,13 +373,13 @@ export function VpnSetupCard({
                                 setTestResult(null);
                                 setPreviewServers(null);
                             }}
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
                         >
                             ➕ Aggiungi VLESS
                         </button>
                         {isVlessActive && (
                             <button onClick={clearAll} disabled={loading}
-                                className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+                                className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300">
                                 🗑️ Disattiva
                             </button>
                         )}
@@ -389,7 +389,7 @@ export function VpnSetupCard({
 
             {isVlessActive && !editing ? (
                 /* Stato attivo (per-utente) */
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
                     <p>
                         <span className="font-semibold">{activeEntry?.label ?? "Tunnel"}</span>
                         {" · "}{activeEntry?.serverTag ?? "auto"}
@@ -401,19 +401,19 @@ export function VpnSetupCard({
             ) : (
                 /* Form */
                 <div className="space-y-2">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                         Collega la tua VPN: incolla un URL subscription, uno share-link
                         diretto oppure la config completa (Xray JSON).
                     </p>
 
                     {/* Toggle URL / Config */}
-                    <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+                    <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-900">
                         <button
                             type="button"
                             onClick={() => { setInputMode("url"); setPreviewServers(null); }}
                             className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "url"
-                                ? "bg-white text-gray-900 shadow-sm"
-                                : "text-gray-500 hover:text-gray-700"}`}
+                                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
+                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
                             🔗 URL subscription
                         </button>
@@ -421,8 +421,8 @@ export function VpnSetupCard({
                             type="button"
                             onClick={() => { setInputMode("config"); setPreviewServers(null); }}
                             className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "config"
-                                ? "bg-white text-gray-900 shadow-sm"
-                                : "text-gray-500 hover:text-gray-700"}`}
+                                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
+                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
                             📋 Incolla config
                         </button>
@@ -434,7 +434,7 @@ export function VpnSetupCard({
                             onChange={(e) => setSubscriptionUrl(e.target.value)}
                             placeholder="https://provider.com/sub?token=…  oppure  vless://…"
                             autoComplete="off" spellCheck={false}
-                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500"
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                         />
                     ) : (
                         <textarea
@@ -443,7 +443,7 @@ export function VpnSetupCard({
                             placeholder='Incolla qui la config completa (Xray/V2Ray JSON) o uno share-link…'
                             rows={6}
                             autoComplete="off" spellCheck={false}
-                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y"
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                         />
                     )}
 
@@ -454,16 +454,16 @@ export function VpnSetupCard({
                         </button>
                         {editing && (
                             <button onClick={() => { setEditing(false); setTestResult(null); }}
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                                 Annulla
                             </button>
                         )}
                     </div>
 
                     {previewServers && previewServers.length > 0 && (
-                        <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                        <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
                             <select value={serverTag} onChange={(e) => setServerTag(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900">
+                                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                                 <option value="auto">⚡ Auto (failover automatico)</option>
                                 {previewServers.map((s) => (
                                     <option key={s.tag} value={s.tag}>
@@ -473,10 +473,10 @@ export function VpnSetupCard({
                             </select>
                             <div className="max-h-32 overflow-y-auto space-y-1">
                                 {previewServers.map((s) => (
-                                    <div key={s.tag} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs">
-                                        <span className="font-mono font-semibold text-emerald-700">{s.tag}</span>
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">{s.protocol}</span>
-                                        <span className="ml-auto font-mono text-gray-500">{s.host}:{s.port}</span>
+                                    <div key={s.tag} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-800">
+                                        <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">{s.tag}</span>
+                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">{s.protocol}</span>
+                                        <span className="ml-auto font-mono text-gray-500 dark:text-gray-400">{s.host}:{s.port}</span>
                                     </div>
                                 ))}
                             </div>
@@ -494,15 +494,15 @@ export function VpnSetupCard({
 
             {/* Lista VLESS salvata (per-utente) */}
             {savedServers.length > 0 && (
-                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-gray-700">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                             💾 Server salvati ({savedServers.length})
                         </p>
                         <button
                             onClick={() => loadFreeSource(true)}
                             disabled={freeSourceLoading}
-                            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 inline-flex items-center gap-1"
+                            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 inline-flex items-center gap-1 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
                             title="Aggiorna la lista dalla sorgente gratuita">
                             {freeSourceLoading ? <><Spinner /> Aggiorno...</> : "🔄 Aggiorna sorgente gratuita"}
                         </button>
@@ -514,8 +514,8 @@ export function VpnSetupCard({
                             return (
                                 <div key={s.id}
                                     className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
-                                        ? "border-emerald-400 bg-emerald-50"
-                                        : "border-gray-200 bg-white hover:bg-gray-100"
+                                        ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                        : "border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
                                         }`}>
                                     <div className="flex items-center gap-2">
                                         <button
@@ -523,29 +523,29 @@ export function VpnSetupCard({
                                             disabled={switchingId !== null}
                                             className="flex-1 text-left disabled:opacity-50"
                                             title="Attiva questo tunnel">
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-semibold text-gray-900 dark:text-gray-100">
                                                 {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
                                             </span>
-                                            <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
+                                            <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                                                 {s.kind}
                                             </span>
                                         </button>
                                         <button
                                             onClick={() => speedTest(s.id)}
                                             disabled={testingId !== null || s.id !== activeId}
-                                            className={`rounded px-1.5 py-0.5 ${grade ? grade.bg : "hover:bg-blue-50"} ${grade ? grade.text : ""} disabled:opacity-30`}
+                                            className={`rounded px-1.5 py-0.5 ${grade ? grade.bg : "hover:bg-blue-50 dark:hover:bg-blue-900/30"} ${grade ? grade.text : ""} disabled:opacity-30`}
                                             title={s.id === activeId ? "Test velocità (lento, banda)" : "Attiva prima il server per testarlo"}>
                                             {testingId === s.id ? "⏳" : grade?.label ?? "⚡ Test"}
                                         </button>
                                         <button
                                             onClick={() => delayTest(s.id)}
                                             disabled={delayingId !== null}
-                                            className={`rounded px-1.5 py-0.5 ${delay ? delay.bg : "hover:bg-amber-50"} ${delay ? delay.text : ""} disabled:opacity-30`}
+                                            className={`rounded px-1.5 py-0.5 ${delay ? delay.bg : "hover:bg-amber-50 dark:hover:bg-amber-900/30"} ${delay ? delay.text : ""} disabled:opacity-30`}
                                             title="Test rapido latenza (Clash API)">
                                             {delayingId === s.id ? "⏳" : delay?.label ?? "🏓 Delay"}
                                         </button>
                                         <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                            className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                            className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/30"
                                             title="Rimuovi dalla lista">
                                             🗑️
                                         </button>
@@ -573,9 +573,9 @@ export function VpnSetupCard({
 
             {/* Test result (auto) */}
             {testResult && (
-                <div className={`mt-3 rounded-xl border p-3 text-sm ${testResult.ok ? "border-green-200 bg-green-50 text-green-900"
-                    : testResult.vpnDetected || testResult.geoBlocked ? "border-orange-200 bg-orange-50 text-orange-900"
-                        : "border-red-200 bg-red-50 text-red-900"}`}>
+                <div className={`mt-3 rounded-xl border p-3 text-sm ${testResult.ok ? "border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+                    : testResult.vpnDetected || testResult.geoBlocked ? "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300"
+                        : "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"}`}>
                     <div className="font-semibold">
                         {testResult.ok ? "✅ Connection OK"
                             : testResult.vpnDetected ? "⚠️ VPN detected by Paramount+"
