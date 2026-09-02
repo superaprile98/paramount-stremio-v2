@@ -84,6 +84,7 @@ export function VpnSetupCard({
             const j = await r.json();
             setSavedServers(j.servers ?? []);
             setActiveId(j.activeId ?? null);
+            onVpnActiveChange(j.activeId != null);
         } catch { /* ignore */ }
     }
 
@@ -100,7 +101,7 @@ export function VpnSetupCard({
             onToast(`✅ ${j.message}`);
             setActiveId(id);
             setEditing(false);
-            await refreshStatus();
+            onVpnActiveChange(true);
         } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
         finally { setSwitchingId(null); }
     }
@@ -150,14 +151,12 @@ export function VpnSetupCard({
     const [editing, setEditing] = useState(false);
 
     async function refreshStatus() {
+        // Solo diagnostica: lo stato "attivo" della card è per-utente
+        // (activeId), NON la config globale legacy.
         try {
             const r = await fetch("/api/vpn/status");
             const vj = await r.json();
-            if (vj.ok) {
-                setStatus(vj);
-                const active = vj.config?.kind === "vless";
-                onVpnActiveChange(active);
-            }
+            if (vj.ok) setStatus(vj);
         } catch { /* ignore */ }
     }
 
@@ -226,125 +225,79 @@ export function VpnSetupCard({
         } else if (!url) {
             onToast("Inserisci un URL subscription o uno share-link");
             return;
+        } else if (!isShareLink(url) && !/^https?:\/\//i.test(url)) {
+            onToast("L'URL deve iniziare con http:// o https://");
+            return;
         }
 
         setLoading(true);
         setTestResult(null);
         try {
-            const body: Record<string, string> = { mode: "vless", serverTag };
-
-            if (inputMode === "config") {
-                body.rawConfig = cfg;
-            } else if (isShareLink(url)) {
-                body.shareLink = url;
-            } else {
-                if (!/^https?:\/\//i.test(url)) { onToast("L'URL deve iniziare con http:// o https://"); return; }
-                body.subscriptionUrl = url;
-            }
-
-            const r = await fetch("/api/vpn/setup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
-            onToast(`✅ ${j.message}`);
-            await refreshStatus();
-
-            // Auto-test dopo il save
-            setTesting(true);
-            try {
-                const tr = await fetch("/api/vpn/test");
-                const tj = await tr.json();
-                if (tr.ok && tj.ok) {
-                    setTestResult(tj.result);
-                    if (tj.result.ok) {
-                        onToast("Connessione funzionante");
-                        onVpnActiveChange(true);
-                    } else {
-                        onToast("Config salvata ma il test non è passato");
-                        onVpnActiveChange(false);
-                    }
-                }
-            } catch { /* test fallito silenziosamente */ }
-            finally { setTesting(false); }
-
-            // Salva nella lista per-utente e attiva via config multi-tenant
-            await saveAndActivateCurrent();
-
+            // Flusso per-utente: salva nella lista privata e attiva il tunnel
+            // dedicato (rigenera la config sing-box multi-tenant). NON usa più
+            // /api/vpn/setup che riscriverebbe la config con quella singola.
+            const ok = await saveAndActivateCurrent();
+            if (!ok) return;
+            setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null);
             setEditing(false);
         } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
         finally { setLoading(false); }
     }
 
-    /* ── Reset ── */
+    /* ── Reset (solo per-utente: rimuove la voce attiva) ── */
 
     async function clearAll() {
-        if (!confirm("Rimuovere la configurazione VLESS corrente?")) return;
-        setLoading(true);
-        try {
-            const r = await fetch("/api/vpn/setup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mode: "clear" }),
-            });
-            const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
-            onToast(`✅ ${j.message}`);
-            setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null); setTestResult(null); setEditing(false);
-            onVpnActiveChange(false);
-            await refreshStatus();
-        } finally { setLoading(false); }
+        if (!activeId) return;
+        if (!confirm("Disattivare e rimuovere il server attivo dalla tua lista?")) return;
+        await deleteServer(activeId);
+        setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null); setTestResult(null); setEditing(false);
+        onVpnActiveChange(false);
     }
 
     /* ── render ── */
 
-    const isVlessActive = status?.config?.kind === "vless";
+    // Stato per-utente: attivo se l'utente ha una voce attiva nella SUA lista
+    const isVlessActive = activeId !== null;
+    const activeEntry = savedServers.find((s) => s.id === activeId) ?? null;
 
     return (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-800">
-                    {isVlessActive && !editing ? "✅ VLESS — Connesso" : "🧩 VLESS — Configurazione"}
+                    {isVlessActive ? "✅ VLESS — Connesso (tunnel tuo)" : "🧩 VLESS — Nessun tunnel attivo"}
                 </h3>
-                {isVlessActive && !editing && (
+                {!editing && (
                     <div className="flex gap-2">
                         <button
                             onClick={() => {
                                 setEditing(true);
                                 setTestResult(null);
-                                const saved = status?.savedCreds?.subscriptionUrl;
-                                if (saved && saved !== "rawConfig") {
-                                    setInputMode("url");
-                                    setSubscriptionUrl(saved);
-                                } else {
-                                    setInputMode("config");
-                                    setRawConfig("");
-                                }
+                                setPreviewServers(null);
                             }}
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                         >
-                            ✏️ Modifica
+                            ➕ Aggiungi VLESS
                         </button>
-                        <button onClick={clearAll} disabled={loading}
-                            className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
-                            🗑️ Reset
-                        </button>
+                        {isVlessActive && (
+                            <button onClick={clearAll} disabled={loading}
+                                className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+                                🗑️ Disattiva
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
 
             {isVlessActive && !editing ? (
-                /* Stato attivo */
+                /* Stato attivo (per-utente) */
                 <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
                     <p>
-                        <span className="font-semibold">{status?.config?.serverTag || "auto"}</span>
-                        {" · "}{status?.config?.serverCount || 0} server
+                        <span className="font-semibold">{activeEntry?.label ?? "Tunnel"}</span>
+                        {" · "}{activeEntry?.serverTag ?? "auto"}
                     </p>
-                    {status?.savedCreds?.subscriptionUrl && (
-                        <p className="mt-1 text-xs opacity-75 font-mono">{maskSubscription(status.savedCreds.subscriptionUrl)}</p>
-                    )}
+                    <p className="mt-1 text-xs opacity-75">
+                        Il traffico del tuo addon esce dal tuo inbound sing-box dedicato.
+                    </p>
                 </div>
             ) : (
                 /* Form */
@@ -450,8 +403,8 @@ export function VpnSetupCard({
                         {savedServers.map((s) => (
                             <div key={s.id}
                                 className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
-                                        ? "border-emerald-400 bg-emerald-50"
-                                        : "border-gray-200 bg-white hover:bg-gray-100"
+                                    ? "border-emerald-400 bg-emerald-50"
+                                    : "border-gray-200 bg-white hover:bg-gray-100"
                                     }`}>
                                 <button
                                     onClick={() => switchServer(s.id)}
