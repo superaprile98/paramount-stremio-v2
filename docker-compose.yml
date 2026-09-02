@@ -79,6 +79,11 @@ services:
     container_name: paramount-stremio
     init: true
     restart: unless-stopped
+    # Esegue il container con uid 1001 (stesso dell'utente host `ubuntu`).
+    # Necessario per scrivere nel bind-mount ./vpn-data (la cui proprietà è
+    # ereditata dall'utente host che ha creato la cartella). Senza questa riga
+    # il container gira come uid 1000 (node) e fallisce con EACCES su config.json.
+    user: "1001:1001"
     depends_on:
       sing-box:
         condition: service_healthy
@@ -103,7 +108,8 @@ services:
       - "${PORT:-7850}:${PORT:-7850}"
     volumes:
       # Sessioni Paramount (cookies cifrati JWE) + prefs sportive.
-      # Il volume named evita problemi di ownership (l'immagine gira come uid 1000).
+      # Il volume named evita problemi di ownership (l'immagine gira come uid 1001,
+      # impostato via `user: "1001:1001"` sopra per matchare l'host `ubuntu`).
       - paramount-data:/app/.data
       # Bind-mount condiviso con sing-box: l'addon scrive qui config.json
       # (via UI /configure → /api/vpn/setup). Stesso path sull'host →
