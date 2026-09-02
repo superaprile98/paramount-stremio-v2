@@ -28,9 +28,9 @@ function Card({ title, subtitle, children, className = "" }: {
     className?: string;
 }) {
     return (
-        <div className={`rounded-2xl border border-gray-200 bg-white p-5 shadow-sm ${className}`}>
-            <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-            {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+        <div className={`rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 ${className}`}>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+            {subtitle && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
             <div className="mt-4">{children}</div>
         </div>
     );
@@ -286,19 +286,19 @@ export default function ConfigurePage() {
     /* ── render ── */
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col dark:bg-gray-900 dark:text-gray-100">
             <div className="mx-auto w-full max-w-2xl px-4 py-10 flex-grow space-y-6">
 
                 {/* ===== HEADER ===== */}
                 <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div className="h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <img src="/icon.png" alt="Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                            Unofficial <span className="text-blue-600">Paramount+</span>
+                        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                            Unofficial <span className="text-blue-600 dark:text-blue-400">Paramount+</span>
                         </h1>
-                        <p className="text-xs text-gray-500">v{packageInfo.version} · Stremio addon</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">v{packageInfo.version} · Stremio addon</p>
                     </div>
                 </div>
 

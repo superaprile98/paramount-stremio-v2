@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tema auto: segue la preferenza di sistema (light/dark). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

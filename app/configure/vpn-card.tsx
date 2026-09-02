@@ -73,11 +73,65 @@ export function VpnSetupCard({
 
     // Lista VLESS salvata per l'utente (per-utente, cifrata su disco)
     type SavedSpeedTest = { at: string; downMbps: number; upMbps: number; latencyMs: number; grade: string; error?: string };
-    type SavedServer = { id: string; label: string; kind: string; serverTag: string; addedAt: string; lastSpeedTest?: SavedSpeedTest | null };
+    type SavedDelayTest = { at: string; avgDelayMs: number | null; okCount: number; totalCount: number; samples: { host: string; delayMs: number }[] };
+    type SavedServer = {
+        id: string; label: string; kind: string; serverTag: string; addedAt: string;
+        lastSpeedTest?: SavedSpeedTest | null;
+        lastDelayTest?: SavedDelayTest | null;
+    };
     const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [switchingId, setSwitchingId] = useState<string | null>(null);
     const [testingId, setTestingId] = useState<string | null>(null);
+    const [delayingId, setDelayingId] = useState<string | null>(null);
+    const [freeSourceInfo, setFreeSourceInfo] = useState<{ hasAutoProvisioned: boolean; lastFetched: string | null; count: number | null; label: string | null } | null>(null);
+    const [freeSourceLoading, setFreeSourceLoading] = useState(false);
+
+    async function refreshFreeSource() {
+        try {
+            const r = await fetch("/api/configure/free-sources");
+            if (!r.ok) return;
+            const j = await r.json();
+            setFreeSourceInfo(j);
+        } catch { /* ignore */ }
+    }
+
+    async function loadFreeSource(force = false) {
+        setFreeSourceLoading(true);
+        try {
+            const r = await fetch("/api/configure/free-sources", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ country: "US", force }),
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || j.message || "Errore"}`); return; }
+            if (j.skipped) { onToast("Sorgente gratuita già presente"); return; }
+            onToast(`✅ Trovati ${j.entry.count} server ${j.entry.country} (qualità ${j.entry.quality}/10)`);
+            await refreshSaved();
+            await refreshFreeSource();
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        finally { setFreeSourceLoading(false); }
+    }
+
+    async function delayTest(id: string) {
+        setDelayingId(id);
+        try {
+            const r = await fetch("/api/configure/vpn-delaytest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ serverId: id, timeoutMs: 2000 }),
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            const ok = (j.results as any[]).filter((x) => x.delayMs !== null).length;
+            const total = (j.results as any[]).length;
+            const best = (j.results as any[]).find((x) => x.delayMs !== null);
+            onToast(`🏓 ${ok}/${total} server ok · migliore ${best?.delayMs ?? '—'} ms`);
+            await refreshSaved();
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        finally { setDelayingId(null); }
+    }
 
     async function speedTest(id: string) {
         setTestingId(id);
@@ -179,7 +233,33 @@ export function VpnSetupCard({
         } catch { /* ignore */ }
     }
 
-    useEffect(() => { refreshStatus(); refreshSaved(); }, []);
+    useEffect(() => { refreshStatus(); refreshSaved(); refreshFreeSource(); }, []);
+
+    // Auto-provisiona la sorgente gratuita se l'utente non ha ancora nessun server.
+    useEffect(() => {
+        if (savedServers.length === 0 && !freeSourceInfo?.hasAutoProvisioned && !freeSourceLoading) {
+            loadFreeSource(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [savedServers.length, freeSourceInfo?.hasAutoProvisioned]);
+
+    /* ── Colori per i grade (chip colorati per velocità) ── */
+
+    function gradeColor(grade: string): { bg: string; text: string; label: string } {
+        const g = grade.toLowerCase();
+        if (g.startsWith("ottima") || g.includes("🏆")) return { bg: "bg-emerald-100", text: "text-emerald-700", label: "🏆 Velocità ottima" };
+        if (g.startsWith("buona") || g.includes("✅")) return { bg: "bg-green-100", text: "text-green-700", label: "✅ Velocità buona" };
+        if (g.startsWith("discreta") || g.includes("⚠️")) return { bg: "bg-amber-100", text: "text-amber-700", label: "⚠️ Velocità discreta" };
+        return { bg: "bg-red-100", text: "text-red-700", label: "❌ Velocità scarsa" };
+    }
+
+    function delayColor(ms: number | null | undefined): { bg: string; text: string; label: string } {
+        if (ms == null) return { bg: "bg-gray-100", text: "text-gray-500", label: "— ms" };
+        if (ms <= 150) return { bg: "bg-emerald-100", text: "text-emerald-700", label: `🟢 ${ms} ms` };
+        if (ms <= 300) return { bg: "bg-amber-100", text: "text-amber-700", label: `🟡 ${ms} ms` };
+        if (ms <= 600) return { bg: "bg-orange-100", text: "text-orange-700", label: `🟠 ${ms} ms` };
+        return { bg: "bg-red-100", text: "text-red-700", label: `🔴 ${ms} ms` };
+    }
 
     /* ── VLESS / subscription ── */
 
@@ -280,9 +360,9 @@ export function VpnSetupCard({
     const activeEntry = savedServers.find((s) => s.id === activeId) ?? null;
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-800">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                     {isVlessActive ? "✅ VLESS — Connesso (tunnel tuo)" : "🧩 VLESS — Nessun tunnel attivo"}
                 </h3>
                 {!editing && (
@@ -415,52 +495,78 @@ export function VpnSetupCard({
             {/* Lista VLESS salvata (per-utente) */}
             {savedServers.length > 0 && (
                 <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">
-                        💾 Server salvati ({savedServers.length}) — clicca per cambiare tunnel
-                    </p>
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                        {savedServers.map((s) => (
-                            <div key={s.id}
-                                className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
-                                    ? "border-emerald-400 bg-emerald-50"
-                                    : "border-gray-200 bg-white hover:bg-gray-100"
-                                    }`}>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => switchServer(s.id)}
-                                        disabled={switchingId !== null}
-                                        className="flex-1 text-left disabled:opacity-50"
-                                        title="Attiva questo tunnel">
-                                        <span className="font-semibold text-gray-900">
-                                            {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
-                                        </span>
-                                        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
-                                            {s.kind}
-                                        </span>
-                                    </button>
-                                    <button
-                                        onClick={() => speedTest(s.id)}
-                                        disabled={testingId !== null || s.id !== activeId}
-                                        className="rounded px-1.5 py-0.5 hover:bg-blue-50 disabled:opacity-30"
-                                        title={s.id === activeId ? "Testa velocità del tunnel attivo" : "Attiva il server per testarlo"}>
-                                        {testingId === s.id ? "⏳" : "⚡"}
-                                    </button>
-                                    <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                        className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
-                                        title="Rimuovi dalla lista">
-                                        🗑️
-                                    </button>
-                                </div>
-                                {s.lastSpeedTest && (
-                                    <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-500">
-                                        <span className="font-semibold text-gray-700">{s.lastSpeedTest.grade}</span>
-                                        <span>↓ {s.lastSpeedTest.downMbps} Mbps</span>
-                                        <span>↑ {s.lastSpeedTest.upMbps} Mbps</span>
-                                        <span>{s.lastSpeedTest.latencyMs} ms</span>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-gray-700">
+                            💾 Server salvati ({savedServers.length})
+                        </p>
+                        <button
+                            onClick={() => loadFreeSource(true)}
+                            disabled={freeSourceLoading}
+                            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 inline-flex items-center gap-1"
+                            title="Aggiorna la lista dalla sorgente gratuita">
+                            {freeSourceLoading ? <><Spinner /> Aggiorno...</> : "🔄 Aggiorna sorgente gratuita"}
+                        </button>
+                    </div>
+                    <div className="space-y-1 max-h-72 overflow-y-auto">
+                        {savedServers.map((s) => {
+                            const grade = s.lastSpeedTest ? gradeColor(s.lastSpeedTest.grade) : null;
+                            const delay = s.lastDelayTest ? delayColor(s.lastDelayTest.avgDelayMs) : null;
+                            return (
+                                <div key={s.id}
+                                    className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
+                                        ? "border-emerald-400 bg-emerald-50"
+                                        : "border-gray-200 bg-white hover:bg-gray-100"
+                                        }`}>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => switchServer(s.id)}
+                                            disabled={switchingId !== null}
+                                            className="flex-1 text-left disabled:opacity-50"
+                                            title="Attiva questo tunnel">
+                                            <span className="font-semibold text-gray-900">
+                                                {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
+                                            </span>
+                                            <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
+                                                {s.kind}
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={() => speedTest(s.id)}
+                                            disabled={testingId !== null || s.id !== activeId}
+                                            className={`rounded px-1.5 py-0.5 ${grade ? grade.bg : "hover:bg-blue-50"} ${grade ? grade.text : ""} disabled:opacity-30`}
+                                            title={s.id === activeId ? "Test velocità (lento, banda)" : "Attiva prima il server per testarlo"}>
+                                            {testingId === s.id ? "⏳" : grade?.label ?? "⚡ Test"}
+                                        </button>
+                                        <button
+                                            onClick={() => delayTest(s.id)}
+                                            disabled={delayingId !== null}
+                                            className={`rounded px-1.5 py-0.5 ${delay ? delay.bg : "hover:bg-amber-50"} ${delay ? delay.text : ""} disabled:opacity-30`}
+                                            title="Test rapido latenza (Clash API)">
+                                            {delayingId === s.id ? "⏳" : delay?.label ?? "🏓 Delay"}
+                                        </button>
+                                        <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                            className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                            title="Rimuovi dalla lista">
+                                            🗑️
+                                        </button>
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    {(grade || delay) && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
+                                            {grade && (
+                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${grade.bg} ${grade.text}`}>
+                                                    {grade.label} · ↓{s.lastSpeedTest!.downMbps} · ↑{s.lastSpeedTest!.upMbps} Mbps
+                                                </span>
+                                            )}
+                                            {delay && s.lastDelayTest && (
+                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${delay.bg} ${delay.text}`}>
+                                                    avg {s.lastDelayTest.avgDelayMs ?? "—"} ms · {s.lastDelayTest.okCount}/{s.lastDelayTest.totalCount} ok
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}

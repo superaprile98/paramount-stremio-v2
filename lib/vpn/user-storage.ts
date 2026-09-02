@@ -28,6 +28,16 @@ export interface VpnServerEntry {
     resolvedServers?: ParsedServer[];
     /** Ultimo speed test eseguito sulla voce (solo se attiva). */
     lastSpeedTest?: SpeedTestResult;
+    /** Ultimo delay test via Clash API (più leggero del speed test). */
+    lastDelayTest?: {
+        at: string;
+        avgDelayMs: number | null;
+        okCount: number;
+        totalCount: number;
+        samples: { host: string; delayMs: number }[];
+    };
+    /** Marker per le entry auto-provisionate da una fonte gratuita (es. openproxylist). */
+    autoProvisioned?: boolean;
 }
 
 export interface UserVpnStore {

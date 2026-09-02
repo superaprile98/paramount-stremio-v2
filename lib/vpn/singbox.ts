@@ -197,6 +197,29 @@ export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
             rules,
             final: firstOutTag,
         },
+        /**
+         * Abilita la Clash API (controller REST di sing-box) sulla porta
+         * configurata da CLASH_API_PORT (default 9090). La ascoltiamo su
+         * 0.0.0.0 SOLO perché viviamo in docker compose e l'unico consumer
+         * è il container Next.js stesso, che la raggiunge via
+         * http://sing-box:9090 (DNS interno del compose). Non esporre mai
+         * questa porta sul public Internet: non ha autenticazione.
+         *
+         * Endpoint utili per il delay test:
+         *   GET  /proxies                        → lista proxy (per user-tag)
+         *   POST /group/{tag}/delay              → delay test su urltest group
+         *   POST /proxies/{name}/delay           → delay test su singolo server
+         */
+        experimental: {
+            clash_api: {
+                default_selector: firstOutTag,
+                global_ui: false,
+                store_selected: false,
+                cache_file: '',
+                listen: '0.0.0.0',
+                port: Number(process.env.CLASH_API_PORT || 9090),
+            },
+        },
     };
 }
 

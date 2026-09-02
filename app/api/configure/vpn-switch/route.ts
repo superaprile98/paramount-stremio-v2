@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSubscription } from "@/lib/vpn/singbox";
-import { writeMultiUserSingBoxConfig, type MultiUserEntry } from "@/lib/vpn/singbox";
 import { parseShareLink, parseConfigText, type ParsedServer } from "@/lib/vpn/share-links";
 import { requireConfigureUser } from "@/lib/auth/configure-auth";
 import { loadUserVpnStore, saveUserVpnStore } from "@/lib/vpn/user-storage";
-import { allocateUserPort, getAllUserPorts } from "@/lib/vpn/user-proxy";
+import { ensureUserPort, reconfigureAllVpns } from "@/lib/vpn/reconfigure";
 
 /**
  * POST /api/configure/vpn-switch — body { id }.
@@ -54,31 +53,15 @@ export async function POST(req: NextRequest) {
         await saveUserVpnStore(auth.userId, store);
 
         // 3) Rigenera la config multi-tenant per TUTTI gli utenti con tunnel attivo
-        allocateUserPort(auth.userId);
-        const ports = getAllUserPorts();
-        const entries: MultiUserEntry[] = [];
-        for (const [uid] of Object.entries(ports)) {
-            const userStore = await loadUserVpnStore(uid);
-            const active = userStore.servers.find((s) => s.id === userStore.activeId);
-            if (!active?.resolvedServers?.length) continue;
-            entries.push({
-                userId: uid,
-                port: ports[uid],
-                servers: active.resolvedServers,
-                serverTag: active.serverTag,
-            });
-        }
-        if (!entries.some((e) => e.userId === auth.userId)) {
-            return NextResponse.json({ ok: false, error: "Errore interno: voce non inclusa nella config" }, { status: 500 });
-        }
-        const { configPath } = await writeMultiUserSingBoxConfig(entries);
+        ensureUserPort(auth.userId);
+        const { activeTunnels, configPath } = await reconfigureAllVpns();
 
         return NextResponse.json({
             ok: true,
-            message: `Attivato "${entry.label}" (inbound dedicato). ${entries.length} tunnel attivi. sing-box si riavvierà entro ~5s.`,
+            message: `Attivato "${entry.label}" (inbound dedicato). ${activeTunnels} tunnel attivi. sing-box si riavvierà entro ~5s.`,
             activeId: entry.id,
             serverCount: servers.length,
-            activeTunnels: entries.length,
+            activeTunnels,
             configPath,
         });
     } catch (err: any) {
