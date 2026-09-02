@@ -211,13 +211,18 @@ export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
          *   POST /proxies/{name}/delay           → delay test su singolo server
          */
         experimental: {
+            // sing-box 1.10+: schema clash_api è cambiato.
+            // Campi validi: external_controller, secret, default_mode,
+            // access_control_allow_origin, access_control_allow_private_network.
+            // external_controller è "host:port" (non più listen+port separati).
             clash_api: {
-                default_selector: firstOutTag,
-                global_ui: false,
-                store_selected: false,
-                cache_file: '',
-                listen: '0.0.0.0',
-                port: Number(process.env.CLASH_API_PORT || 9090),
+                external_controller: `0.0.0.0:${Number(process.env.CLASH_API_PORT || 9090)}`,
+                // Abilita richieste dalla rete interna del compose (container
+                // `paramount` su http://sing-box:9090). Senza questo CORS blocca
+                // il browser, ma per le chiamate server-to-server dal Next.js
+                // container non serve comunque — impostato per coerenza con il
+                // path di sviluppo futuro (eventuale UI clash integrata).
+                access_control_allow_private_network: true,
             },
         },
     };
