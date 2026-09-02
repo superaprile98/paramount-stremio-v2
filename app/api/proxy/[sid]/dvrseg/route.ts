@@ -68,8 +68,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ sid: string }> 
     const { status, data: stream, headers: resHeaders } = await httpClient.get(upstreamUrl.toString(), {
         headers,
         responseType: "stream",
-        validateStatus: (s) => s < 500,
-    });
+        validateStatus: (s: number) => s < 500,
+        proxyUrl: client.getSessionProxyUrl() ?? undefined,
+    } as any);
 
     const webStream = new ReadableStream({
         start(controller) {

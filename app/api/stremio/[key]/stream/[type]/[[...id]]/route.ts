@@ -14,7 +14,7 @@ import { findSportEvent, resolveSportEventStream } from "@/lib/paramount/sports"
 import type { SportEvent } from "@/lib/paramount/sport-models";
 import { resolveLiveStream } from "@/lib/paramount/live";
 import { httpClient } from "@/lib/http/client";
-import { splitMasterPlaylist, splitAudioTracks } from "@/lib/paramount/proxy/hls";
+import { splitMasterPlaylist, splitAudioTracks, pickPreferredLang } from "@/lib/paramount/proxy/hls";
 import { hlsStream, type AddonStream } from "@/lib/stremio/streams";
 
 export const runtime = "nodejs";
@@ -25,12 +25,16 @@ export const preferredRegion = "iad1";
 const MASTER_CACHE_TTL = 30 * 1000;
 const masterCache = new Map<string, { data: string; expiresAt: number }>();
 
-async function fetchMasterManifest(url: string, headers: Record<string, string>): Promise<string | null> {
+async function fetchMasterManifest(
+    url: string,
+    headers: Record<string, string>,
+    proxyUrl?: string
+): Promise<string | null> {
     const cacheKey = `${url}|${headers["authorization"] ?? ""}`;
     const cached = masterCache.get(cacheKey);
     if (cached && Date.now() < cached.expiresAt) return cached.data;
 
-    const { status, data } = await httpClient.get(url, { headers });
+    const { status, data } = await httpClient.get(url, { headers, proxyUrl } as any);
     if (status !== 200) return null;
 
     const text = data.toString();
@@ -89,10 +93,19 @@ export async function GET(
     const baseUrl = process.env.BASE_URL?.replace(/\/$/, "") ?? new URL(req.url).origin;
 
     if (streamingUrl.toString().includes(".m3u8")) {
+        headers["accept"] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
+        const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers, client.getSessionProxyUrl() ?? undefined);
+        const audioTracks = masterM3u8 ? splitAudioTracks(masterM3u8) : [];
+        const multiLang = audioTracks.length >= 2;
+        // Lingua preferita (ita → eng → DEFAULT → prima): applicata agli
+        // stream Auto/quality/DVR senza lang esplicito.
+        const preferredLang = multiLang ? pickPreferredLang(audioTracks) : null;
+
         // Base proxy URL (immutable reference — clone per variante)
         const proxyBase = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/hls`);
         proxyBase.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString("base64url"));
         proxyBase.searchParams.set("t", Buffer.from(lsSession.toString()).toString("base64url"));
+        if (preferredLang) proxyBase.searchParams.set("lang", preferredLang);
 
         // Auto quality stream
         streams.push(
@@ -106,17 +119,13 @@ export async function GET(
             const dvrUrl = new URL(`${baseUrl}/api/stremio/${encodeURIComponent(key)}/proxy/dvr`);
             dvrUrl.searchParams.set("u", Buffer.from(streamingUrl.toString()).toString("base64url"));
             dvrUrl.searchParams.set("t", Buffer.from(lsSession.toString()).toString("base64url"));
+            if (preferredLang) dvrUrl.searchParams.set("lang", preferredLang);
             streams.push(
                 hlsStream(`${streamingTitle} \n⏪ From Start (DVR) \n🎞 HLS (Auto quality)`, dvrUrl, false)
             );
         }
 
-        headers["accept"] = "application/vnd.apple.mpegurl, application/x-mpegURL, */*";
-        const masterM3u8 = await fetchMasterManifest(streamingUrl.toString(), headers);
         if (masterM3u8) {
-            const audioTracks = splitAudioTracks(masterM3u8);
-            const multiLang = audioTracks.length >= 2;
-
             // Per-language Auto quality streams
             if (multiLang) {
                 for (const track of audioTracks) {

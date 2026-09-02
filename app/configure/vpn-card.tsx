@@ -71,6 +71,73 @@ export function VpnSetupCard({
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
+    // Lista VLESS salvata per l'utente (per-utente, cifrata su disco)
+    type SavedServer = { id: string; label: string; kind: string; serverTag: string; addedAt: string };
+    const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [switchingId, setSwitchingId] = useState<string | null>(null);
+
+    async function refreshSaved() {
+        try {
+            const r = await fetch("/api/configure/vpn-servers");
+            if (!r.ok) return;
+            const j = await r.json();
+            setSavedServers(j.servers ?? []);
+            setActiveId(j.activeId ?? null);
+        } catch { /* ignore */ }
+    }
+
+    async function switchServer(id: string) {
+        setSwitchingId(id);
+        try {
+            const r = await fetch("/api/configure/vpn-switch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id }),
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            onToast(`✅ ${j.message}`);
+            setActiveId(id);
+            setEditing(false);
+            await refreshStatus();
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        finally { setSwitchingId(null); }
+    }
+
+    async function deleteServer(id: string) {
+        if (!confirm("Rimuovere questo server dalla lista salvata?")) return;
+        try {
+            const r = await fetch(`/api/configure/vpn-servers?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+            const j = await r.json();
+            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            setSavedServers(j.servers ?? []);
+            setActiveId(j.activeId ?? null);
+            onToast("Server rimosso dalla lista");
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+    }
+
+    /** Salva l'input corrente nella lista per-utente e lo attiva (config multi-tenant). */
+    async function saveAndActivateCurrent(): Promise<boolean> {
+        const url = subscriptionUrl.trim();
+        const cfg = rawConfig.trim();
+        const kind = inputMode === "config" ? (isShareLink(cfg) ? "shareLink" : "rawConfig") : (isShareLink(url) ? "shareLink" : "subscription");
+        const input = inputMode === "config" ? cfg : url;
+        if (!input) return false;
+        try {
+            const addRes = await fetch("/api/configure/vpn-servers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ label: kind === "subscription" ? maskSubscription(input) : "VLESS", kind, input, serverTag }),
+            });
+            const addJson = await addRes.json();
+            if (!addRes.ok || !addJson.ok) { onToast(`❌ ${addJson.error || "Error"}`); return false; }
+            await refreshSaved();
+            await switchServer(addJson.id);
+            return true;
+        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); return false; }
+    }
+
     // VLESS / subscription
     const [inputMode, setInputMode] = useState<"url" | "config">("url");
     const [subscriptionUrl, setSubscriptionUrl] = useState("");
@@ -94,7 +161,7 @@ export function VpnSetupCard({
         } catch { /* ignore */ }
     }
 
-    useEffect(() => { refreshStatus(); }, []);
+    useEffect(() => { refreshStatus(); refreshSaved(); }, []);
 
     /* ── VLESS / subscription ── */
 
@@ -202,6 +269,9 @@ export function VpnSetupCard({
                 }
             } catch { /* test fallito silenziosamente */ }
             finally { setTesting(false); }
+
+            // Salva nella lista per-utente e attiva via config multi-tenant
+            await saveAndActivateCurrent();
 
             setEditing(false);
         } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
@@ -367,6 +437,42 @@ export function VpnSetupCard({
                             : testing ? <><Spinner /> Testando...</>
                                 : "💾 Save & connect"}
                     </button>
+                </div>
+            )}
+
+            {/* Lista VLESS salvata (per-utente) */}
+            {savedServers.length > 0 && (
+                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">
+                        💾 Server salvati ({savedServers.length}) — clicca per cambiare tunnel
+                    </p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {savedServers.map((s) => (
+                            <div key={s.id}
+                                className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
+                                        ? "border-emerald-400 bg-emerald-50"
+                                        : "border-gray-200 bg-white hover:bg-gray-100"
+                                    }`}>
+                                <button
+                                    onClick={() => switchServer(s.id)}
+                                    disabled={switchingId !== null}
+                                    className="flex-1 text-left disabled:opacity-50"
+                                    title="Attiva questo tunnel">
+                                    <span className="font-semibold text-gray-900">
+                                        {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
+                                    </span>
+                                    <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
+                                        {s.kind}
+                                    </span>
+                                </button>
+                                <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                    className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                    title="Rimuovi dalla lista">
+                                    🗑️
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 

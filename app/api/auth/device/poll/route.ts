@@ -3,6 +3,7 @@ import { ParamountAuthStart, ParamountClient, ParamountSession } from "@/lib/par
 import { guessBaseUrl } from "@/lib/paramount/utils";
 import { withCors, optionsCors } from "@/lib/stremio/cors";
 import { storeSessionKey } from "@/lib/auth/session-store";
+import { CONFIG_COOKIE, requireConfigureUser } from "@/lib/auth/configure-auth";
 
 export function OPTIONS() { return optionsCors(); }
 
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
         cookies: polled.cookies,
         expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 365
     };
+    // Se il login avviene da /configure, associa la sessione all'utente
+    // configure (per il proxy sing-box dedicato multi-tenant).
+    const configureUser = await requireConfigureUser(req);
+    if (configureUser) session.owner = configureUser.userId;
     await client.setSession(session);
     const key = await client.getSessionKey();
     if (!key) {

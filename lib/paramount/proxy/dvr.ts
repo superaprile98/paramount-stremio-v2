@@ -1,3 +1,5 @@
+import { langMatches } from "@/lib/paramount/proxy/hls";
+
 /**
  * Logica pura per le playlist DVR "from start" degli eventi live.
  *
@@ -87,6 +89,127 @@ export function pickVariantUrl(masterText: string, masterUrl: URL, bandwidth: nu
         variants.sort((a, b) => b.bw - a.bw);
     }
     return variants[0].url;
+}
+
+/**
+ * Rendition audio separata dichiarata nel master (`#EXT-X-MEDIA:TYPE=AUDIO`).
+ */
+export interface AudioRendition {
+    groupId: string;
+    name: string;
+    language: string;
+    isDefault: boolean;
+    /** URI assoluta della media playlist audio. */
+    uri: string;
+}
+
+/**
+ * Estrae le rendition audio separate dal master (URI assoluta).
+ * Ritorna [] se l'audio è muxed nel TS (nessuna EXT-X-MEDIA:TYPE=AUDIO).
+ */
+export function pickAudioRenditions(masterText: string, masterUrl: URL): AudioRendition[] {
+    const renditions: AudioRendition[] = [];
+    for (const raw of masterText.split("\n")) {
+        const line = raw.trim();
+        if (!line.startsWith("#EXT-X-MEDIA:")) continue;
+        if (line.match(/TYPE=([A-Z-]+)/)?.[1] !== "AUDIO") continue;
+        const uriMatch = line.match(/URI="([^"]+)"/);
+        if (!uriMatch) continue;
+        renditions.push({
+            groupId: line.match(/GROUP-ID="([^"]+)"/)?.[1] ?? "",
+            name: line.match(/NAME="([^"]+)"/)?.[1] ?? "",
+            language: line.match(/LANGUAGE="([^"]+)"/)?.[1] ?? "und",
+            isDefault: line.match(/DEFAULT=(YES|NO)/)?.[1] === "YES",
+            uri: new URL(uriMatch[1], masterUrl).toString(),
+        });
+    }
+    return renditions;
+}
+
+/**
+ * Seleziona la rendition audio: lingua richiesta (ita→eng con alias) →
+ * DEFAULT=YES → prima disponibile. Ritorna null se non ci sono rendition.
+ */
+export function pickAudioRendition(
+    renditions: AudioRendition[],
+    lang?: string | null
+): AudioRendition | null {
+    if (renditions.length === 0) return null;
+    if (lang) {
+        const match = renditions.find((r) => langMatches(r.language, lang));
+        if (match) return match;
+    }
+    const byCode = (code: string) => renditions.find((r) => langMatches(r.language, code));
+    return byCode("ita") ?? byCode("eng") ?? renditions.find((r) => r.isDefault) ?? renditions[0];
+}
+
+export interface PickedVariant {
+    bandwidth: number;
+    url: string;
+    resolution: string | null;
+    /** Group-id AUDIO referenziato dallo STREAM-INF, se presente. */
+    audioGroup: string | null;
+}
+
+/**
+ * Seleziona la variante video dal master (closest bandwidth se specificato,
+ * altrimenti la più alta), restituendo anche risoluzione e group audio.
+ */
+export function pickVariant(masterText: string, masterUrl: URL, bandwidth: number | null): PickedVariant | null {
+    const lines = masterText.split("\n").map((l) => l.trim());
+    const variants: { bw: number; url: string; resolution: string | null; audioGroup: string | null }[] = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (!lines[i].startsWith("#EXT-X-STREAM-INF")) continue;
+        const info = lines[i];
+        const bw = parseInt(info.match(/BANDWIDTH=(\d+)/)?.[1] || "0", 10);
+        const resolution = info.match(/RESOLUTION=(\d+x\d+)/)?.[1] ?? null;
+        const audioGroup = info.match(/AUDIO="([^"]+)"/)?.[1] ?? null;
+        const next = lines[i + 1];
+        if (next && !next.startsWith("#")) {
+            variants.push({ bw, url: new URL(next, masterUrl).toString(), resolution, audioGroup });
+            i++;
+        }
+    }
+    if (variants.length === 0) return null;
+    if (bandwidth) {
+        variants.sort((a, b) => Math.abs(a.bw - bandwidth) - Math.abs(b.bw - bandwidth));
+    } else {
+        variants.sort((a, b) => b.bw - a.bw);
+    }
+    const v = variants[0];
+    return { bandwidth: v.bw, url: v.url, resolution: v.resolution, audioGroup: v.audioGroup };
+}
+
+/**
+ * Sintetizza il master DVR: STREAM-INF video → playlist DVR video proxata,
+ * EXT-X-MEDIA AUDIO → playlist DVR audio proxata (stesso group-id del master
+ * originale, così il player associa correttamente la rendition).
+ */
+export function buildDvrMaster(params: {
+    variant: PickedVariant;
+    audio: AudioRendition | null;
+    /** URL della playlist DVR video (già proxata). */
+    videoPlaylistUrl: string;
+    /** URL della playlist DVR audio (già proxata). */
+    audioPlaylistUrl: string | null;
+}): string {
+    const { variant, audio, videoPlaylistUrl, audioPlaylistUrl } = params;
+    const out: string[] = ["#EXTM3U", "#EXT-X-VERSION:6"];
+    if (audio && audioPlaylistUrl) {
+        out.push(
+            `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="${variant.audioGroup ?? "audio"}",` +
+            `NAME="${audio.name}",LANGUAGE="${audio.language}",` +
+            `DEFAULT=YES,AUTOSELECT=YES,URI="${audioPlaylistUrl}"`
+        );
+    }
+    const streamInf = [
+        `BANDWIDTH=${variant.bandwidth}`,
+        ...(variant.resolution ? [`RESOLUTION=${variant.resolution}`] : []),
+        ...(audio && audioPlaylistUrl ? [`AUDIO="${variant.audioGroup ?? "audio"}"`] : []),
+    ];
+    out.push(`#EXT-X-STREAM-INF:${streamInf.join(",")}`);
+    out.push(videoPlaylistUrl);
+    return out.join("\n") + "\n";
 }
 
 /**

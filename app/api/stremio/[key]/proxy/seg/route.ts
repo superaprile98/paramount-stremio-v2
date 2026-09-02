@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {ParamountClient} from "@/lib/paramount/client";
-import {needsParamountAuth, isAllowedUpstreamUrl, buildCookieHeader, forwardHeaders, copyRespHeaders, PPLUS_BASE_URL, PPLUS_HEADER} from "@/lib/paramount/utils";
-import {httpClient} from "@/lib/http/client";
+import { ParamountClient } from "@/lib/paramount/client";
+import { needsParamountAuth, isAllowedUpstreamUrl, buildCookieHeader, forwardHeaders, copyRespHeaders, PPLUS_BASE_URL, PPLUS_HEADER } from "@/lib/paramount/utils";
+import { httpClient } from "@/lib/http/client";
 
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
@@ -57,12 +57,13 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ key: string }> 
     }
 
     const method = req.method === "HEAD" ? "HEAD" : "GET";
-    const {status: status, data: stream, headers: resHeaders} = await httpClient.get(upstreamUrl.toString(), {
+    const { status: status, data: stream, headers: resHeaders } = await httpClient.get(upstreamUrl.toString(), {
         headers: headers,
         //responseType: 'arraybuffer',
         responseType: 'stream',
-        validateStatus: (s) => s < 500
-    });
+        validateStatus: (s: number) => s < 500,
+        proxyUrl: client.getSessionProxyUrl() ?? undefined,
+    } as any);
 
     const webStream = new ReadableStream({
         start(controller) {

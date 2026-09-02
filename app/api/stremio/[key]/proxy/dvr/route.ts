@@ -14,8 +14,12 @@ import { rewriteM3U8 } from "@/lib/paramount/proxy/hls";
 import {
     parseMediaPlaylist,
     pickVariantUrl,
+    pickVariant,
+    pickAudioRenditions,
+    pickAudioRendition,
     extractSegmentTemplate,
     buildDvrPlaylist,
+    buildDvrMaster,
 } from "@/lib/paramount/proxy/dvr";
 
 export const runtime = "nodejs";
@@ -48,6 +52,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ key: string }> 
     const u = req.nextUrl.searchParams.get("u");
     const t = req.nextUrl.searchParams.get("t");
     const b = req.nextUrl.searchParams.get("b");
+    const lang = req.nextUrl.searchParams.get("lang");
     if (!u || !t) return new NextResponse("Missing u/t", { status: 400 });
 
     let upstreamUrl: URL;
@@ -63,7 +68,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ key: string }> 
         return new NextResponse("Forbidden upstream host", { status: 403 });
     }
 
-    const cacheKey = `${u}|${t}|${b ?? ""}`;
+    const cacheKey = `${u}|${t}|${b ?? ""}|${lang ?? ""}`;
     const cached = dvrCache.get(cacheKey);
     if (cached && Date.now() < cached.expiresAt) {
         return new NextResponse(cached.body, { status: 200, headers: m3u8Headers() });
@@ -85,18 +90,52 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ key: string }> 
         return headers;
     };
 
+    // Proxy dedicato dell'utente proprietario della sessione (multi-tenant)
+    const sessionProxy = client.getSessionProxyUrl() ?? undefined;
+
     // 1) Fetch del playlist iniziale (master o media)
-    const first = await httpClient.get(upstreamUrl.toString(), { headers: await buildHeaders(upstreamUrl.hostname) });
+    const first = await httpClient.get(upstreamUrl.toString(), { headers: await buildHeaders(upstreamUrl.hostname), proxyUrl: sessionProxy } as any);
     if (first.status !== 200) return new NextResponse("Upstream error", { status: 502 });
     let text = first.data.toString();
     let mediaUrl = upstreamUrl;
 
-    // 2) Se è un master, seleziona la variante e fetch della media playlist
+    // 2) Se è un master, seleziona la variante e fetch della media playlist.
+    //    Con rendition audio separate (#EXT-X-MEDIA:TYPE=AUDIO) ritorniamo un
+    //    master DVR: video → playlist DVR video, audio → playlist DVR audio
+    //    (le due playlist EVENT vengono poi servite da questa stessa route
+    //    quando il player richiede i loro URL).
     if (text.includes("#EXT-X-STREAM-INF")) {
+        const variant = pickVariant(text, upstreamUrl, b ? parseInt(b, 10) : null);
+        if (!variant) return new NextResponse("No variants", { status: 502 });
+
+        const renditions = pickAudioRenditions(text, upstreamUrl);
+        const audio = pickAudioRendition(renditions, lang);
+
+        if (audio) {
+            const baseOrigin = guessBaseUrl(req);
+            const dvrUrlFor = (upstream: URL) => {
+                const d = new URL(`${baseOrigin}/api/stremio/${encodeURIComponent(key)}/proxy/dvr`);
+                d.searchParams.set("u", Buffer.from(upstream.toString()).toString("base64url"));
+                d.searchParams.set("t", t);
+                return d.toString();
+            };
+            const videoPlaylistUrl = new URL(variant.url);
+            const audioPlaylistUrl = new URL(audio.uri);
+            const master = buildDvrMaster({
+                variant,
+                audio,
+                videoPlaylistUrl: dvrUrlFor(videoPlaylistUrl),
+                audioPlaylistUrl: dvrUrlFor(audioPlaylistUrl),
+            });
+            dvrCache.set(cacheKey, { body: master, expiresAt: Date.now() + DVR_CACHE_TTL });
+            return new NextResponse(master, { status: 200, headers: m3u8Headers() });
+        }
+
+        // Nessuna rendition audio separata (muxed): comportamento precedente
         const variantUrl = pickVariantUrl(text, upstreamUrl, b ? parseInt(b, 10) : null);
         if (!variantUrl) return new NextResponse("No variants", { status: 502 });
         mediaUrl = new URL(variantUrl);
-        const media = await httpClient.get(mediaUrl.toString(), { headers: await buildHeaders(mediaUrl.hostname) });
+        const media = await httpClient.get(mediaUrl.toString(), { headers: await buildHeaders(mediaUrl.hostname), proxyUrl: sessionProxy } as any);
         if (media.status !== 200) return new NextResponse("Upstream error", { status: 502 });
         text = media.data.toString();
     }

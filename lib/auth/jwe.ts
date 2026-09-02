@@ -32,7 +32,9 @@ export async function seal(payload: object): Promise<string> {
     const encrypted = await new CompactEncrypt(plaintext)
         .setProtectedHeader({ alg: "dir", enc: "A256GCM", typ: "JWE" })
         .encrypt(key);
-    return Buffer.from(encrypted).toString("base64");
+    // CompactEncrypt.encrypt() ritorna già la stringa JWE compatta (ASCII):
+    // base64 via btoa è compatibile sia con Node sia con Edge runtime
+    return btoa(encrypted);
 }
 
 export async function unseal(token: string): Promise<object> {
@@ -40,7 +42,9 @@ export async function unseal(token: string): Promise<object> {
     // @ts-expect-error: Uint8Array<ArrayBufferLike> non è assegnabile a BufferSource
     const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
 
-    const { plaintext } = await compactDecrypt(Buffer.from(token, 'base64').toString('utf-8'), key);
+    // btoa/atob sono disponibili sia in Node ≥ 18 sia in Edge runtime
+    const jwe = atob(token);
+    const { plaintext } = await compactDecrypt(jwe, key);
     const json = new TextDecoder().decode(plaintext);
     return JSON.parse(json);
 }

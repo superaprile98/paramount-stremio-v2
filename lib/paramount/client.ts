@@ -7,6 +7,7 @@ import {
     getAtToken,
 } from "@/lib/paramount/utils";
 import { httpClient } from "@/lib/http/client";
+import { getUserProxyUrl } from "@/lib/vpn/user-proxy";
 import {
     IrdetoSessionToken,
     LiveChannelItem,
@@ -29,6 +30,8 @@ export type ParamountSession = {
     cookies: string[];
     expiresAt: number;
     profileId?: number | undefined;
+    /** Utente configure proprietario della sessione (per il proxy dedicato). */
+    owner?: string | undefined;
 };
 
 export class ParamountClient {
@@ -64,7 +67,8 @@ export class ParamountClient {
                 "User-Agent": userAgent,
                 ...(this.session?.cookies?.length ? { Cookie: this.session.cookies.map((c) => c.split(";")[0]).join("; ") } : {}),
             },
-        });
+            proxyUrl: this.getSessionProxyUrl() ?? undefined,
+        } as any);
 
         if (status >= 400) {
             // P16: log con contesto completo (URL, status, body troncato).
@@ -115,7 +119,8 @@ export class ParamountClient {
                     "User-Agent": userAgent,
                     ...(this.session?.cookies?.length ? { Cookie: this.session.cookies.map((c) => c.split(";")[0]).join("; ") } : {}),
                 },
-            });
+                proxyUrl: this.getSessionProxyUrl() ?? undefined,
+            } as any);
 
         if (debug) {
             console.log("[PPLUS] Status", status);
@@ -155,7 +160,18 @@ export class ParamountClient {
             cookies: payload.cookies,
             expiresAt: payload.expiresAt,
             profileId: payload.profileId,
+            owner: payload.owner,
         };
+    }
+
+    /**
+     * URL del proxy dedicato all'utente proprietario della sessione
+     * (sing-box multi-tenant), o null per usare il round-robin globale.
+     */
+    public getSessionProxyUrl(): string | null {
+        const owner = this.session?.owner;
+        if (!owner) return null;
+        return getUserProxyUrl(owner);
     }
 
     public async setSession(session: ParamountSession) {

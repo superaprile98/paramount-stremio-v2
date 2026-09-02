@@ -32,15 +32,60 @@ export function splitAudioTracks(masterM3u8: string): AudioTrack[] {
     return tracks;
 }
 
+/** Normalizza un codice lingua: "ita-IT" → "ita", "en" → "en". */
+function normalizeLang(lang: string): string {
+    return lang.toLowerCase().split("-")[0];
+}
+
+/** Alias ISO 639-2 (T) ↔ ISO 639-1 per le lingue principali. */
+const LANG_ALIASES: Record<string, string> = {
+    ita: "it",
+    it: "ita",
+    eng: "en",
+    en: "eng",
+};
+
+export function langMatches(lang: string, target: string): boolean {
+    const a = normalizeLang(lang);
+    const b = normalizeLang(target);
+    return a === b || LANG_ALIASES[a] === b || LANG_ALIASES[b] === a;
+}
+
+/**
+ * Sceglie la lingua preferita tra le tracce audio disponibili:
+ * italiano → inglese → traccia DEFAULT=YES → prima traccia.
+ * Ritorna il codice LANGUAGE originale (da passare come `lang` al proxy).
+ */
+export function pickPreferredLang(tracks: AudioTrack[]): string | null {
+    if (tracks.length === 0) return null;
+    const byCode = (code: string) => tracks.find((t) => langMatches(t.language, code));
+    return (
+        byCode("ita")?.language ??
+        byCode("eng")?.language ??
+        tracks.find((t) => t.isDefault)?.language ??
+        tracks[0].language
+    );
+}
+
 export function filterMasterByLanguage(masterM3u8: string, targetLang: string): string {
     const lines = masterM3u8.split("\n");
     const out: string[] = [];
+
+    // Se nessuna rendition AUDIO corrisponde alla lingua richiesta, non
+    // filtrare nulla: rimuovere tutte le EXT-X-MEDIA romperebbe il master
+    // (STREAM-INF che referenzia un group-id inesistente → player in loading).
+    const hasMatch = lines.some((raw) => {
+        const trimmed = raw.trim();
+        if (!trimmed.startsWith("#EXT-X-MEDIA:") || !trimmed.includes("TYPE=AUDIO")) return false;
+        const lang = trimmed.match(/LANGUAGE="([^"]+)"/)?.[1] ?? "";
+        return langMatches(lang, targetLang);
+    });
 
     for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.startsWith("#EXT-X-MEDIA:") && trimmed.includes("TYPE=AUDIO")) {
             const lang = trimmed.match(/LANGUAGE="([^"]+)"/)?.[1] ?? "";
-            if (lang !== targetLang) continue; // rimuove le altre lingue
+            if (hasMatch && !langMatches(lang, targetLang)) continue; // rimuove le altre lingue
             let modified = trimmed;
             if (modified.match(/DEFAULT=(YES|NO)/)) {
                 modified = modified.replace(/DEFAULT=(YES|NO)/, "DEFAULT=YES");

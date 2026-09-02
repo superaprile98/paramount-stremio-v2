@@ -290,6 +290,22 @@ const PROXY_FAILURE_CODES = new Set([
     'EPIPE',
 ]);
 
+// ── Proxy dedicato per richiesta (sing-box multi-tenant) ─────────────────
+// Ogni utente configure con VLESS attiva ha il suo inbound sing-box. Le
+// richieste legate a una sessione passano `proxyUrl` esplicito e bypassano
+// il round-robin globale.
+const dedicatedAgents = new Map<string, { http: ProxyAgent; https: ProxyAgent }>();
+
+function agentsForProxy(proxyUrl: string): { http: ProxyAgent; https: ProxyAgent } {
+    let pair = dedicatedAgents.get(proxyUrl);
+    if (!pair) {
+        const agent = new ProxyAgent({ getProxyForUrl: () => proxyUrl });
+        pair = { http: agent, https: agent };
+        dedicatedAgents.set(proxyUrl, pair);
+    }
+    return pair;
+}
+
 export class HttpClient {
     private client: AxiosInstance;
     private probeStarted = false;
@@ -387,6 +403,13 @@ export class HttpClient {
         headers: Headers;
         cookies: string[];
     }> {
+        // Proxy dedicato per-request (multi-tenant): bypassa il round-robin.
+        const forcedProxy = (config as any).proxyUrl as string | undefined;
+        if (forcedProxy) {
+            const { proxyUrl: _strip, ...rest } = config as any;
+            return this.baseRequestDedicated(rest, forcedProxy);
+        }
+
         if (PROXY_URLS.length === 0) {
             return this.baseRequestSingle(config, null);
         }
@@ -482,6 +505,42 @@ export class HttpClient {
                 const proxyHint = proxyUrl ? ` (via ${proxyUrl})` : '';
                 console.warn(
                     `[HTTP] ${config.method ?? 'GET'} ${config.url}${proxyHint} -> ${response.status} ${bodyPreview ?? ''}`,
+                );
+            }
+            return this.buildResponse(response);
+        } catch (error: any) {
+            this.handleError(error, config.url || 'unknown', proxyUrl);
+            throw error;
+        }
+    }
+
+    /**
+     * Richiesta via proxy dedicato (nessun fallback round-robin: il tunnel
+     * dell'utente è dedicato; un fallimento va propagato).
+     */
+    private async baseRequestDedicated(
+        config: AxiosRequestConfig,
+        proxyUrl: string,
+    ): Promise<{
+        status: number;
+        data: any;
+        headers: Headers;
+        cookies: string[];
+    }> {
+        const agents = agentsForProxy(proxyUrl);
+        try {
+            const response = await this.client.request({
+                ...config,
+                httpAgent: agents.http,
+                httpsAgent: agents.https,
+                proxy: false,
+            });
+            if (response.status >= 400) {
+                const bodyPreview = typeof response.data === 'string'
+                    ? response.data.slice(0, 300)
+                    : JSON.stringify(response.data)?.slice(0, 300);
+                console.warn(
+                    `[HTTP] ${config.method ?? 'GET'} ${config.url} (via ${proxyUrl}) -> ${response.status} ${bodyPreview ?? ''}`,
                 );
             }
             return this.buildResponse(response);

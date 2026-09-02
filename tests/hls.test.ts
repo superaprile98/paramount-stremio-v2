@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     splitAudioTracks,
     filterMasterByLanguage,
+    pickPreferredLang,
     splitMasterPlaylist,
     filterMasterByClosestBandwidth,
     rewriteM3U8,
@@ -54,6 +55,46 @@ describe("hls: filterMasterByLanguage", () => {
         const out = filterMasterByLanguage(MASTER, "en");
         expect(out).toContain("DEFAULT=YES");
         expect(out).toContain("AUTOSELECT=YES");
+    });
+
+    it("matches ISO 639-2 aliases (ita ↔ it, eng ↔ en)", () => {
+        const out = filterMasterByLanguage(MASTER, "ita");
+        expect(out).toContain('LANGUAGE="it"');
+        expect(out).not.toContain('LANGUAGE="en"');
+    });
+
+    it("keeps all audio renditions when the target language does not exist", () => {
+        // Regression: rimuovere tutte le EXT-X-MEDIA rompe il master
+        // (STREAM-INF con AUDIO= group-id orfano → player in loading infinito).
+        const out = filterMasterByLanguage(MASTER, "fra");
+        expect(out).toContain('LANGUAGE="it"');
+        expect(out).toContain('LANGUAGE="en"');
+    });
+});
+
+describe("hls: pickPreferredLang", () => {
+    it("prefers italian, then english, then default, then first", () => {
+        const tracks = splitAudioTracks(MASTER);
+        expect(pickPreferredLang(tracks)).toBe("it");
+    });
+
+    it("falls back to english when no italian track", () => {
+        const enOnly = `#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="English",LANGUAGE="en",DEFAULT=NO,URI="a.m3u8"
+`;
+        expect(pickPreferredLang(splitAudioTracks(enOnly))).toBe("en");
+    });
+
+    it("falls back to DEFAULT=YES track when neither ita nor eng", () => {
+        const frOnly = `#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="Français",LANGUAGE="fr",DEFAULT=YES
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="b",NAME="Deutsch",LANGUAGE="de",DEFAULT=NO
+`;
+        expect(pickPreferredLang(splitAudioTracks(frOnly))).toBe("fr");
+    });
+
+    it("returns null for an empty track list", () => {
+        expect(pickPreferredLang([])).toBeNull();
     });
 });
 

@@ -84,7 +84,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ key: string
     const { status, data } = await httpClient.get(url!.toString(), {
         responseType: 'arraybuffer',
         headers,
-    });
+        proxyUrl: client.getSessionProxyUrl() ?? undefined,
+    } as any);
 
     return new NextResponse(data, {
         status,
@@ -126,7 +127,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ key: strin
                 "User-Agent": userAgent,
                 ...(session?.cookies?.length ? { Cookie: session.cookies.map((c) => c.split(";")[0]).join("; ") } : {}),
             },
-        });
+            proxyUrl: client.getSessionProxyUrl() ?? undefined,
+        } as any);
 
     return new NextResponse(data, {
         status: status,

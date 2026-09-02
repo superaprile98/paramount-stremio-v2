@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import {ParamountClient} from "@/lib/paramount/client";
-import {needsParamountAuth, isAllowedUpstreamUrl, buildCookieHeader, guessBaseUrl, PPLUS_BASE_URL, PPLUS_HEADER} from "@/lib/paramount/utils";
-import {httpClient} from "@/lib/http/client";
-import {rewriteM3U8, filterMasterByClosestBandwidth, filterMasterByLanguage} from "@/lib/paramount/proxy/hls";
+import { ParamountClient } from "@/lib/paramount/client";
+import { needsParamountAuth, isAllowedUpstreamUrl, buildCookieHeader, guessBaseUrl, PPLUS_BASE_URL, PPLUS_HEADER } from "@/lib/paramount/utils";
+import { httpClient } from "@/lib/http/client";
+import { rewriteM3U8, filterMasterByClosestBandwidth, filterMasterByLanguage } from "@/lib/paramount/proxy/hls";
 
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
@@ -53,9 +53,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ key: string }> 
         headers["referer"] = PPLUS_BASE_URL;
     }
 
-    const {status, data} = await httpClient.get(upstreamUrl.toString(), {
-        headers: headers
-    });
+    const { status, data } = await httpClient.get(upstreamUrl.toString(), {
+        headers: headers,
+        proxyUrl: client.getSessionProxyUrl() ?? undefined,
+    } as any);
 
     if (req.method === "HEAD") {
         const h = new Headers({

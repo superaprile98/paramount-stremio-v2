@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
     parseMediaPlaylist,
     pickVariantUrl,
+    pickVariant,
+    pickAudioRenditions,
+    pickAudioRendition,
     extractSegmentTemplate,
     buildDvrPlaylist,
+    buildDvrMaster,
     MAX_DVR_SEGMENTS,
 } from "@/lib/paramount/proxy/dvr";
 
@@ -236,5 +240,85 @@ describe("buildDvrPlaylist", () => {
         expect(segUrls[segUrls.length - 1]).toBe(
             `https://para.example.com/api/proxy/SID/dvrseg?n=${MAX_DVR_SEGMENTS + 529}`
         );
+    });
+});
+
+/**
+ * Master con rendition audio separate (il caso reale Paramount: audio non
+ * muxed nel TS). Prima del fix la playlist DVR conteneva solo segmenti video
+ * → riproduzione senza audio.
+ */
+const MASTER_WITH_AUDIO = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:6",
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud-ita",NAME="Italiano",LANGUAGE="ita",DEFAULT=YES,AUTOSELECT=YES,URI="audio/ita.m3u8"',
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud-ita",NAME="English",LANGUAGE="eng",DEFAULT=NO,AUTOSELECT=YES,URI="audio/eng.m3u8"',
+    '#EXT-X-STREAM-INF:BANDWIDTH=4454000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud-ita"',
+    "https://dai.google.com/linear/hls/pb/event/KEY/stream/uuid:TPE/variant/720.m3u8",
+    '#EXT-X-STREAM-INF:BANDWIDTH=2196000,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2",AUDIO="aud-ita"',
+    "https://dai.google.com/linear/hls/pb/event/KEY/stream/uuid:TPE/variant/360.m3u8",
+    "",
+].join("\n");
+
+const MASTER_URL = new URL("https://dai.google.com/linear/hls/pb/event/KEY/stream/uuid:TPE/master.m3u8");
+
+describe("pickAudioRenditions / pickAudioRendition", () => {
+    it("estrae le rendition audio con URI assoluta", () => {
+        const renditions = pickAudioRenditions(MASTER_WITH_AUDIO, MASTER_URL);
+        expect(renditions).toHaveLength(2);
+        expect(renditions[0]).toMatchObject({ groupId: "aud-ita", language: "ita", isDefault: true });
+        expect(renditions[0].uri).toBe("https://dai.google.com/linear/hls/pb/event/KEY/stream/uuid:TPE/audio/ita.m3u8");
+    });
+
+    it("ritorna [] per master muxed (nessuna rendition audio)", () => {
+        expect(pickAudioRenditions(MASTER_PLAYLIST, MASTER_URL)).toHaveLength(0);
+    });
+
+    it("seleziona ita per lang=ita, con fallback eng", () => {
+        const renditions = pickAudioRenditions(MASTER_WITH_AUDIO, MASTER_URL);
+        expect(pickAudioRendition(renditions, "ita")?.language).toBe("ita");
+        expect(pickAudioRendition(renditions, "fra")?.language).toBe("ita"); // DEFAULT=YES
+        expect(pickAudioRendition(renditions)?.language).toBe("ita");
+    });
+
+    it("fallback eng quando manca ita", () => {
+        const engOnly = pickAudioRenditions(MASTER_WITH_AUDIO, MASTER_URL).slice(1);
+        expect(pickAudioRendition(engOnly)?.language).toBe("eng");
+        expect(pickAudioRendition([])).toBeNull();
+    });
+});
+
+describe("pickVariant / buildDvrMaster", () => {
+    it("seleziona la variante con bandwidth/resolution/audioGroup", () => {
+        const v = pickVariant(MASTER_WITH_AUDIO, MASTER_URL, 2000000);
+        expect(v).toMatchObject({ bandwidth: 2196000, resolution: "640x360", audioGroup: "aud-ita" });
+    });
+
+    it("sintetizza il master DVR con rendition audio proxata", () => {
+        const v = pickVariant(MASTER_WITH_AUDIO, MASTER_URL, null)!;
+        const audio = pickAudioRendition(pickAudioRenditions(MASTER_WITH_AUDIO, MASTER_URL), "ita")!;
+        const master = buildDvrMaster({
+            variant: v,
+            audio,
+            videoPlaylistUrl: "https://para.example.com/api/stremio/K/proxy/dvr?u=VIDEO",
+            audioPlaylistUrl: "https://para.example.com/api/stremio/K/proxy/dvr?u=AUDIO",
+        });
+        expect(master).toContain('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud-ita"');
+        expect(master).toContain('URI="https://para.example.com/api/stremio/K/proxy/dvr?u=AUDIO"');
+        expect(master).toContain('AUDIO="aud-ita"');
+        expect(master).toContain("BANDWIDTH=4454000");
+        expect(master).toContain("RESOLUTION=1280x720");
+        expect(master.split("\n").at(-2)).toBe("https://para.example.com/api/stremio/K/proxy/dvr?u=VIDEO");
+    });
+
+    it("omette la rendition audio quando assente (muxed)", () => {
+        const master = buildDvrMaster({
+            variant: { bandwidth: 1000, url: "v.m3u8", resolution: null, audioGroup: null },
+            audio: null,
+            videoPlaylistUrl: "https://para.example.com/dvr-video",
+            audioPlaylistUrl: null,
+        });
+        expect(master).not.toContain("#EXT-X-MEDIA");
+        expect(master).not.toContain('AUDIO="');
     });
 });

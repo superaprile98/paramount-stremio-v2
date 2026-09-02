@@ -138,6 +138,79 @@ export function buildSingBoxConfig(servers: ParsedServer[], serverTag: string = 
     };
 }
 
+/* ── Multi-tenant: un inbound HTTP per utente ──────────────────────────── */
+
+export interface MultiUserEntry {
+    userId: string;
+    /** Porta inbound HTTP dedicata (es. 8888, 8889, ...). */
+    port: number;
+    servers: ParsedServer[];
+    serverTag: string;
+}
+
+/**
+ * Config sing-box multi-tenant: un inbound HTTP per utente (porta dedicata)
+ * e un gruppo urltest per utente. Le route rules mappano inbound → outbound
+ * group, così il traffico di ciascun utente esce dai SUOI server VLESS.
+ */
+export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
+    const inbounds: any[] = [];
+    const outbounds: any[] = [];
+    const rules: any[] = [];
+    const firstOutTag = entries.length > 0 ? `out-${entries[0].userId}` : 'direct';
+
+    for (const entry of entries) {
+        const inTag = `in-${entry.userId}`;
+        const outTag = `out-${entry.userId}`;
+        inbounds.push({
+            type: 'http',
+            tag: inTag,
+            listen: '0.0.0.0',
+            listen_port: entry.port,
+        });
+
+        const serverTags: string[] = [];
+        for (const s of entry.servers) {
+            if (s.transport === 'xhttp') continue; // non supportato da sing-box
+            const tag = `u${entry.userId}-${s.tag || `${s.host}:${s.port}`}`;
+            serverTags.push(tag);
+            outbounds.push(buildOutbound(s, tag));
+        }
+        if (serverTags.length === 0) continue;
+
+        outbounds.push({
+            type: 'urltest',
+            tag: `out-${entry.userId}`,
+            outbounds: serverTags,
+            url: 'http://www.gstatic.com/generate_204',
+            interval: '3m',
+            tolerance: 50,
+        });
+        rules.push({ inbound: inTag, outbound: `out-${entry.userId}` });
+    }
+
+    return {
+        log: { level: 'info', timestamp: true },
+        inbounds,
+        outbounds,
+        route: {
+            rules,
+            final: firstOutTag,
+        },
+    };
+}
+
+/**
+ * Scrive la config multi-tenant (stesso path di quella singola: il watcher
+ * riavvia sing-box ad ogni cambio). Ritorna il path scritto.
+ */
+export async function writeMultiUserSingBoxConfig(entries: MultiUserEntry[]): Promise<{ configPath: string }> {
+    await fs.mkdir(SING_BOX_DIR, { recursive: true, mode: 0o700 });
+    const config = buildMultiUserSingBoxConfig(entries);
+    await fs.writeFile(VPN_DATA_PATHS.singBoxConfig, JSON.stringify(config, null, 2), { mode: 0o600 });
+    return { configPath: VPN_DATA_PATHS.singBoxConfig };
+}
+
 function buildTls(s: ParsedServer): any {
     const tls: any = {
         enabled: true,
