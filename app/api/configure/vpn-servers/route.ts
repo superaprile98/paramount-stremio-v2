@@ -6,6 +6,7 @@ import {
     newServerId,
     type VpnServerEntry,
 } from "@/lib/vpn/user-storage";
+import { resolveEntryServers } from "@/lib/vpn/reconfigure";
 
 /**
  * API lista VLESS per-utente (protetta da middleware + verifica cookie).
@@ -26,12 +27,35 @@ function maskInput(entry: VpnServerEntry) {
         serverTag: entry.serverTag,
         addedAt: entry.addedAt,
         lastSpeedTest: entry.lastSpeedTest ?? null,
+        lastDelayTest: entry.lastDelayTest ?? null,
     };
 }
 
 export async function GET(req: NextRequest) {
     const auth = await requireConfigureUser(req);
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // GET ?id=... → lista NODI della voce (tag/host/port/protocollo, senza
+    // segreti) per il selettore "auto | nodo specifico" nella UI.
+    const id = req.nextUrl.searchParams.get("id");
+    if (id) {
+        const store = await loadUserVpnStore(auth.userId);
+        const entry = store.servers.find((s) => s.id === id);
+        if (!entry) return NextResponse.json({ ok: false, error: "voce non trovata" }, { status: 404 });
+        let nodes: { tag: string; host: string; port: number; protocol: string }[] = [];
+        try {
+            const resolved = await resolveEntryServers(entry);
+            nodes = resolved
+                .filter((s) => s.transport !== "xhttp")
+                .map((s) => ({ tag: s.tag || `${s.host}:${s.port}`, host: s.host, port: s.port, protocol: s.protocol }));
+            // cache per non rifare il fetch ad ogni apertura
+            if (entry.resolvedServers?.length === 0 || !entry.resolvedServers) {
+                entry.resolvedServers = resolved;
+                await saveUserVpnStore(auth.userId, store);
+            }
+        } catch { /* subscription irraggiungibile: lista vuota */ }
+        return NextResponse.json({ ok: true, id, serverTag: entry.serverTag, nodes });
+    }
 
     const store = await loadUserVpnStore(auth.userId);
     return NextResponse.json({

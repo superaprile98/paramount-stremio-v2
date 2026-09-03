@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchSubscription } from "@/lib/vpn/singbox";
-import { parseShareLink, parseConfigText, type ParsedServer } from "@/lib/vpn/share-links";
+import type { ParsedServer } from "@/lib/vpn/share-links";
 import { requireConfigureUser } from "@/lib/auth/configure-auth";
 import { loadUserVpnStore, saveUserVpnStore } from "@/lib/vpn/user-storage";
-import { ensureUserPort, reconfigureAllVpns } from "@/lib/vpn/reconfigure";
+import { ensureUserPort, reconfigureAllVpns, resolveEntryServers } from "@/lib/vpn/reconfigure";
 
 /**
  * POST /api/configure/vpn-switch — body { id }.
@@ -21,6 +20,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const id = String((body as any)?.id || "");
     if (!id) return NextResponse.json({ ok: false, error: "id mancante" }, { status: 400 });
+    // serverTag opzionale: "auto" (default) o il tag di un nodo specifico.
+    const serverTag = String((body as any)?.serverTag || "").trim();
 
     const store = await loadUserVpnStore(auth.userId);
     const entry = store.servers.find((s) => s.id === id);
@@ -28,27 +29,14 @@ export async function POST(req: NextRequest) {
 
     try {
         // 1) Risolve i server della voce selezionata (con cache sull'entry)
-        let servers: ParsedServer[] = entry.resolvedServers ?? [];
+        const servers: ParsedServer[] = await resolveEntryServers(entry);
         if (servers.length === 0) {
-            if (entry.kind === "shareLink") {
-                const parsed = parseShareLink(entry.input);
-                if (!parsed) return NextResponse.json({ ok: false, error: "Share-link non valido" }, { status: 400 });
-                servers = [parsed];
-            } else if (entry.kind === "rawConfig") {
-                servers = parseConfigText(entry.input);
-                if (servers.length === 0) {
-                    return NextResponse.json({ ok: false, error: "Config non valida: nessun server riconosciuto" }, { status: 400 });
-                }
-            } else {
-                servers = await fetchSubscription(entry.input);
-            }
-            if (servers.length === 0) {
-                return NextResponse.json({ ok: false, error: "Nessun server valido trovato" }, { status: 400 });
-            }
+            return NextResponse.json({ ok: false, error: "Nessun server valido trovato (input non valido o subscription irraggiungibile)" }, { status: 400 });
         }
 
         // 2) Salva la voce attiva con i server risolti (cifrati a riposo)
         entry.resolvedServers = servers;
+        if (serverTag) entry.serverTag = serverTag;
         store.activeId = entry.id;
         await saveUserVpnStore(auth.userId, store);
 

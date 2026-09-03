@@ -35,6 +35,13 @@ type PreviewServer = {
     port: number;
 };
 
+type NodeInfo = {
+    tag: string;
+    host: string;
+    port: number;
+    protocol: string;
+};
+
 type VpnStatus = {
     ok: boolean;
     summary?: { alive: number; blocked: number; throttled: number; dead: number; unknown: number };
@@ -84,6 +91,9 @@ export function VpnSetupCard({
     const [switchingId, setSwitchingId] = useState<string | null>(null);
     const [testingId, setTestingId] = useState<string | null>(null);
     const [delayingId, setDelayingId] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [nodesById, setNodesById] = useState<Record<string, NodeInfo[]>>({});
+    const [nodesLoadingId, setNodesLoadingId] = useState<string | null>(null);
     const [freeSourceInfo, setFreeSourceInfo] = useState<{ hasAutoProvisioned: boolean; lastFetched: string | null; count: number | null; label: string | null } | null>(null);
     const [freeSourceLoading, setFreeSourceLoading] = useState(false);
 
@@ -161,13 +171,13 @@ export function VpnSetupCard({
         } catch { /* ignore */ }
     }
 
-    async function switchServer(id: string) {
+    async function switchServer(id: string, serverTag?: string) {
         setSwitchingId(id);
         try {
             const r = await fetch("/api/configure/vpn-switch", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id }),
+                body: JSON.stringify(serverTag ? { id, serverTag } : { id }),
             });
             const j = await r.json();
             if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
@@ -175,8 +185,28 @@ export function VpnSetupCard({
             setActiveId(id);
             setEditing(false);
             onVpnActiveChange(true);
+            // aggiorna il tag scelto sulla voce locale
+            if (serverTag) {
+                setSavedServers((prev) => prev.map((x) => (x.id === id ? { ...x, serverTag } : x)));
+            }
         } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
         finally { setSwitchingId(null); }
+    }
+
+    /* ── Nodi di una voce salvata (pannello espandibile) ── */
+
+    async function toggleExpand(id: string) {
+        if (expandedId === id) { setExpandedId(null); return; }
+        setExpandedId(id);
+        if (!nodesById[id]) {
+            setNodesLoadingId(id);
+            try {
+                const r = await fetch(`/api/configure/vpn-servers?id=${encodeURIComponent(id)}`);
+                const j = await r.json();
+                if (r.ok && j.ok) setNodesById((prev) => ({ ...prev, [id]: j.nodes ?? [] }));
+            } catch { /* ignore */ }
+            finally { setNodesLoadingId(null); }
+        }
     }
 
     async function deleteServer(id: string) {
@@ -519,16 +549,27 @@ export function VpnSetupCard({
                                         }`}>
                                     <div className="flex items-center gap-2">
                                         <button
-                                            onClick={() => switchServer(s.id)}
-                                            disabled={switchingId !== null}
-                                            className="flex-1 text-left disabled:opacity-50"
-                                            title="Attiva questo tunnel">
+                                            onClick={() => toggleExpand(s.id)}
+                                            className="flex-1 text-left"
+                                            title="Mostra nodi e opzioni">
                                             <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                                {switchingId === s.id ? "⏳ " : s.id === activeId ? "✅ " : ""}{s.label}
+                                                {expandedId === s.id ? "▾ " : "▸ "}{s.id === activeId ? "✅ " : ""}{s.label}
                                             </span>
                                             <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                                                 {s.kind}
                                             </span>
+                                            {s.serverTag && s.serverTag !== "auto" && (
+                                                <span className="ml-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                                                    nodo: {s.serverTag}
+                                                </span>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => switchServer(s.id)}
+                                            disabled={switchingId !== null || s.id === activeId}
+                                            className="rounded px-1.5 py-0.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                                            title={s.id === activeId ? "Già attivo" : "Attiva questo tunnel"}>
+                                            ⏏
                                         </button>
                                         <button
                                             onClick={() => speedTest(s.id)}
@@ -561,6 +602,52 @@ export function VpnSetupCard({
                                                 <span className={`rounded px-1.5 py-0.5 font-semibold ${delay.bg} ${delay.text}`}>
                                                     avg {s.lastDelayTest.avgDelayMs ?? "—"} ms · {s.lastDelayTest.okCount}/{s.lastDelayTest.totalCount} ok
                                                 </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Pannello espandibile: nodi + selettore auto/nodo */}
+                                    {expandedId === s.id && (
+                                        <div className="mt-2 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
+                                            {nodesLoadingId === s.id ? (
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">⏳ Carico i nodi…</p>
+                                            ) : (nodesById[s.id]?.length ?? 0) === 0 ? (
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">Nessun nodo disponibile (subscription irraggiungibile?)</p>
+                                            ) : (
+                                                <>
+                                                    <select
+                                                        value={s.serverTag || "auto"}
+                                                        onChange={(e) => switchServer(s.id, e.target.value)}
+                                                        disabled={switchingId !== null}
+                                                        className="w-full rounded-md border border-gray-300 bg-white p-1.5 text-[11px] text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                                                        title="Scegli auto (failover) o un nodo specifico">
+                                                        <option value="auto">⚡ Auto (failover su tutti i nodi)</option>
+                                                        {nodesById[s.id].map((n) => {
+                                                            const sample = s.lastDelayTest?.samples.find((x) => x.host === n.tag);
+                                                            return (
+                                                                <option key={n.tag} value={n.tag}>
+                                                                    {n.tag} — {n.protocol} · {n.host}:{n.port}{sample ? ` · ${sample.delayMs} ms` : ""}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                    <div className="max-h-28 space-y-1 overflow-y-auto">
+                                                        {nodesById[s.id].map((n) => {
+                                                            const sample = s.lastDelayTest?.samples.find((x) => x.host === n.tag);
+                                                            const dc = delayColor(sample ? sample.delayMs : null);
+                                                            return (
+                                                                <div key={n.tag} className="flex items-center gap-2 rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] dark:border-gray-700 dark:bg-gray-800">
+                                                                    <span className="font-mono font-semibold text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
+                                                                    <span className="ml-auto font-mono text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
+                                                                    <span className={`rounded px-1 py-0.5 font-semibold ${dc.bg} ${dc.text}`}>{dc.label}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                                        Scegli un nodo dal menu per attivarlo subito (o "auto" per il failover). Il delay dei nodi è aggiornato col bottone 🏑 Delay.
+                                                    </p>
+                                                </>
                                             )}
                                         </div>
                                     )}

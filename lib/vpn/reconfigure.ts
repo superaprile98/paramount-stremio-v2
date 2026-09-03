@@ -1,6 +1,7 @@
-import { writeMultiUserSingBoxConfig, type MultiUserEntry } from "@/lib/vpn/singbox";
+import { writeMultiUserSingBoxConfig, fetchSubscription, type MultiUserEntry } from "@/lib/vpn/singbox";
+import { parseShareLink, parseConfigText, type ParsedServer } from "@/lib/vpn/share-links";
 import { allocateUserPort, getAllUserPorts } from "@/lib/vpn/user-proxy";
-import { loadUserVpnStore } from "@/lib/vpn/user-storage";
+import { loadUserVpnStore, type VpnServerEntry } from "@/lib/vpn/user-storage";
 
 /**
  * Helper condiviso da /api/configure/vpn-switch, /api/configure/vpn-servers
@@ -38,4 +39,20 @@ export async function reconfigureAllVpns(): Promise<ReconfigureResult> {
 /** Garantisce che l'utente abbia una porta allocata (idempotente). */
 export function ensureUserPort(userId: string): number {
     return allocateUserPort(userId);
+}
+
+/**
+ * Risolve i ParsedServer di una voce salvata (condiviso da vpn-switch e
+ * vpn-delaytest): shareLink/rawConfig vengono parsati localmente, le
+ * subscription vengono scaricate. NON tocca lo store: la cache va salvata
+ * dal chiamante se serve.
+ */
+export async function resolveEntryServers(entry: VpnServerEntry): Promise<ParsedServer[]> {
+    if (entry.resolvedServers?.length) return entry.resolvedServers;
+    if (entry.kind === "shareLink") {
+        const parsed = parseShareLink(entry.input);
+        return parsed ? [parsed] : [];
+    }
+    if (entry.kind === "rawConfig") return parseConfigText(entry.input);
+    return fetchSubscription(entry.input);
 }

@@ -181,8 +181,15 @@ export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
             listen_port: entry.port,
         });
 
+        // serverTag: "auto" = urltest su tutti i nodi; un tag specifico =
+        // solo quel nodo (fallback su tutti se il tag non esiste più).
+        const wanted = entry.serverTag && entry.serverTag !== 'auto'
+            ? entry.servers.filter((s) => s.tag === entry.serverTag)
+            : entry.servers;
+        const list = wanted.length > 0 ? wanted : entry.servers;
+
         const serverTags: string[] = [];
-        for (const s of entry.servers) {
+        for (const s of list) {
             if (s.transport === 'xhttp') continue; // non supportato da sing-box
             const tag = uniqueTag(`u${entry.userId}-${s.tag || `${s.host}:${s.port}`}`);
             seenTags.add(tag);
