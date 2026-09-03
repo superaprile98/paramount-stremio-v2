@@ -81,17 +81,17 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
         hostHint = `${u.hostname}${u.port ? ":" + u.port : ""}`;
     } catch { }
     return (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+        <div className="rounded-xl border border-gray-300 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-200">
             <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold">⚠️ Local address detected</p>
-                <button onClick={onDismiss} className="rounded-md px-2 text-amber-900/70 hover:bg-amber-100 dark:text-amber-300/70 dark:hover:bg-amber-900/40">✕</button>
+                <p className="font-semibold">Local address detected</p>
+                <button onClick={onDismiss} className="rounded-md px-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">✕</button>
             </div>
             <p className="mt-1">
-                The manifest URL points to <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{manifestUrl}</code>.
-                Stremio on other devices cannot reach <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/40">{hostHint}</code>.
+                The manifest URL points to <code className="rounded bg-gray-100 px-1 font-mono dark:bg-gray-900">{manifestUrl}</code>.
+                Stremio on other devices cannot reach <code className="rounded bg-gray-100 px-1 dark:bg-gray-900">{hostHint}</code>.
             </p>
             <p className="mt-2">
-                Set <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/40">BASE_URL</code> to a public URL and restart.
+                Set <code className="rounded bg-gray-100 px-1 dark:bg-gray-900">BASE_URL</code> to a public URL and restart.
             </p>
         </div>
     );
@@ -100,7 +100,7 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
 /* ── Toast ──────────────────────────────────────────────────── */
 
 function Toast({ msg, type = "success" }: { msg: string; type?: "success" | "error" | "info" }) {
-    const colors = type === "error" ? "bg-red-600" : type === "info" ? "bg-blue-600" : "bg-black";
+    const colors = type === "error" ? "bg-red-600" : type === "info" ? "bg-gray-700" : "bg-emerald-600";
     return (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-sm text-white shadow-lg z-50 ${colors} animate-bounce`}>
             {msg}
@@ -171,7 +171,7 @@ export default function ConfigurePage() {
                 setManifestUrl(j.manifestUrl);
                 setInstallUrl(j.installUrl ?? null);
                 setPassword("");
-                showToast("Logged in ✅");
+                showToast("Logged in");
             } else if (r.status === 429) {
                 setError(j?.error ?? "Too many attempts. Try again later.");
             } else {
@@ -236,7 +236,7 @@ export default function ConfigurePage() {
     async function onCopyInstallUrl() {
         if (!installUrl) return;
         const ok = await copyToClipboard(installUrl);
-        showToast(ok ? "Copied ✅" : "Failed to copy", ok ? "success" : "error");
+        showToast(ok ? "Copied" : "Failed to copy", ok ? "success" : "error");
     }
 
     /* ── sports prefs ── */
@@ -261,7 +261,7 @@ export default function ConfigurePage() {
                 body: JSON.stringify({ action, ...extra }),
             });
             const j = await r.json();
-            if (r.ok) { setPrefs(j.prefs); showToast("Saved ✅"); }
+            if (r.ok) { setPrefs(j.prefs); showToast("Saved"); }
             else showToast(j?.error ?? "Error", "error");
         } catch { showToast("Error", "error"); }
     }
@@ -296,7 +296,7 @@ export default function ConfigurePage() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                            Unofficial <span className="text-blue-600 dark:text-blue-400">Paramount+</span>
+                            Unofficial Paramount+
                         </h1>
                         <p className="text-xs text-gray-500 dark:text-gray-400">v{packageInfo.version} · Stremio addon</p>
                     </div>
@@ -310,7 +310,7 @@ export default function ConfigurePage() {
 
                 {/* ===== STEP 2: LOGIN CARD ===== */}
                 <Card
-                    title={manifestUrl ? "✅ Logged in to Paramount+" : "Sign in to Paramount+"}
+                    title={manifestUrl ? "Logged in to Paramount+" : "Sign in to Paramount+"}
                     subtitle={!manifestUrl ? "Your credentials are sent server-side through the configured proxy and never stored." : undefined}
                 >
                     {!manifestUrl ? (
@@ -324,7 +324,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                 />
                                 <div className="relative">
                                     <input
@@ -335,7 +335,7 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                     />
                                     <button
                                         type="button"
@@ -356,13 +356,13 @@ export default function ConfigurePage() {
                             <button
                                 onClick={passwordLogin}
                                 disabled={busy}
-                                className="w-full rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                                className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
                             >
                                 {busy ? <><Spinner /> Signing in...</> : "Sign in"}
                             </button>
 
                             <p className="text-xs text-gray-500 text-center">
-                                ⚠️ Too many failed attempts may temporarily block this server&rsquo;s IP.
+                                Too many failed attempts may temporarily block this server&rsquo;s IP.
                             </p>
 
                             {/* Device code alternative */}
@@ -379,15 +379,15 @@ export default function ConfigurePage() {
                                         <div className="rounded-xl bg-gray-100 p-3 text-center dark:bg-gray-900">
                                             <p className="text-xs text-gray-500 mb-1 dark:text-gray-400">Go to</p>
                                             <a href="https://www.paramountplus.com/activate/androidtv/" target="_blank" rel="noreferrer"
-                                                className="text-blue-600 text-sm font-medium break-all dark:text-blue-400">
+                                                className="text-emerald-600 text-sm font-medium break-all dark:text-emerald-400">
                                                 paramountplus.com/activate/androidtv
                                             </a>
                                             <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">and enter this code:</p>
                                             <p className="text-3xl font-black tracking-[6px] text-gray-900 mt-1 dark:text-gray-100">{activationCode}</p>
                                             <p className="text-xs text-gray-400 mt-1">Checking every 3 seconds...</p>
                                         </div>
-                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-                                            ⚠️ US account required. If outside the US, the activation page will redirect you
+                                        <div className="rounded-xl border border-gray-300 bg-gray-50 p-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
+                                            US account required. If outside the US, the activation page will redirect you
                                             and the code won&rsquo;t work. Use the password login instead.
                                         </div>
                                     </div>
@@ -405,7 +405,7 @@ export default function ConfigurePage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={busy}
-                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
+                                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                 />
                                 <div className="relative">
                                     <input
@@ -416,7 +416,7 @@ export default function ConfigurePage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && passwordLogin()}
                                         disabled={busy}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-16 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:disabled:bg-gray-800"
                                     />
                                     <button
                                         type="button"
@@ -436,7 +436,7 @@ export default function ConfigurePage() {
                                 <button
                                     onClick={passwordLogin}
                                     disabled={busy}
-                                    className="flex-1 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                                    className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
                                 >
                                     {busy ? <><Spinner /> Signing in...</> : "Update login"}
                                 </button>
@@ -456,7 +456,7 @@ export default function ConfigurePage() {
                                     onClick={() => { setLoginEditing(true); setError(null); }}
                                     className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                                 >
-                                    ✏️ Modifica
+                                    Modifica
                                 </button>
                                 <button
                                     onClick={() => { resetAll(); setEmail(""); setPassword(""); setShowDevice(false); }}
@@ -471,7 +471,7 @@ export default function ConfigurePage() {
 
                 {/* ===== SPORTS PREFERENCES ===== */}
                 {key && (
-                    <Card title="⚽ Sports — Your favorite teams" subtitle="Teams you pick will be highlighted at the top of every Sport catalog.">
+                    <Card title="Sports — Your favorite teams" subtitle="Teams you pick will be highlighted at the top of every Sport catalog.">
                         <div className="space-y-3">
                             <div className="flex gap-2">
                                 <input
@@ -479,12 +479,12 @@ export default function ConfigurePage() {
                                     onChange={(e) => setNewTeam(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && onAddTeam()}
                                     placeholder="Team name, e.g. Inter"
-                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
+                                    className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                                 />
                                 <button
                                     onClick={onAddTeam}
                                     disabled={!newTeam.trim()}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-40"
+                                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
                                 >
                                     Add
                                 </button>
@@ -501,7 +501,7 @@ export default function ConfigurePage() {
                                             disabled={already}
                                             className={`rounded-full border px-2.5 py-0.5 text-xs transition ${already
                                                 ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
-                                                : "border-blue-300 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"}`}
+                                                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
                                         >
                                             {already ? `✓ ${name}` : `+ ${name}`}
                                         </button>
@@ -512,8 +512,8 @@ export default function ConfigurePage() {
                             {prefs && prefs.favoriteTeams.length > 0 && (
                                 <div className="flex flex-wrap gap-2">
                                     {prefs.favoriteTeams.map((t) => (
-                                        <span key={t.key} className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-sm dark:border-blue-800 dark:bg-gray-900">
-                                            ⭐ {t.name}
+                                        <span key={t.key} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                            {t.name}
                                             <button onClick={() => onRemoveTeam(t.key)} className="text-gray-400 hover:text-red-500">✕</button>
                                         </span>
                                     ))}
@@ -536,7 +536,7 @@ export default function ConfigurePage() {
                                             onClick={() => onToggleLeague(l.key, hidden)}
                                             className={`rounded-full px-3 py-1 text-xs font-medium transition ${hidden
                                                 ? "bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                                                : "bg-black text-white hover:bg-black/85 dark:bg-blue-600 dark:hover:bg-blue-700"}`}
+                                                : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
                                         >
                                             {hidden ? "Show" : "Hide"}
                                         </button>
@@ -568,10 +568,10 @@ export default function ConfigurePage() {
                                     href={stremioInstallUrl || "#"}
                                     onClick={(e) => !stremioInstallUrl && e.preventDefault()}
                                     className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition ${stremioInstallUrl
-                                        ? "bg-black text-white hover:bg-black/85 dark:bg-blue-600 dark:hover:bg-blue-700"
+                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
                                         : "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"}`}
                                 >
-                                    ⚡ Install in Stremio
+                                    Install in Stremio
                                 </a>
 
                                 <button
@@ -593,20 +593,20 @@ export default function ConfigurePage() {
                     ) : (
                         <div className="space-y-2">
                             <div className="flex items-center gap-3 text-sm">
-                                <span className={vpnActive ? "text-green-600" : "text-gray-400"}>
-                                    {vpnActive ? "✅" : "○"} Step 1 — Connetti VLESS
+                                <span className={vpnActive ? "text-emerald-600" : "text-gray-400"}>
+                                    {vpnActive ? "●" : "○"} Step 1 — Connetti VLESS
                                 </span>
                             </div>
                             <div className="flex items-center gap-3 text-sm">
-                                <span className={manifestUrl ? "text-green-600" : "text-gray-400"}>
-                                    {manifestUrl ? "✅" : "○"} Step 2 — Login Paramount+
+                                <span className={manifestUrl ? "text-emerald-600" : "text-gray-400"}>
+                                    {manifestUrl ? "●" : "○"} Step 2 — Login Paramount+
                                 </span>
                             </div>
                             <button
                                 disabled
                                 className="w-full rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed inline-flex items-center justify-center gap-2 dark:bg-gray-800 dark:text-gray-600"
                             >
-                                ⚡ Install in Stremio
+                                Install in Stremio
                             </button>
                         </div>
                     )}
@@ -629,9 +629,9 @@ export default function ConfigurePage() {
                         under Paramount&rsquo;s terms. Use at your own discretion.
                     </p>
                     <div className="mt-2">
-                        <a href="https://github.com/RioNoir/paramount-stremio" className="text-xs text-purple-900 hover:underline dark:text-purple-400">Source Code</a>
+                        <a href="https://github.com/RioNoir/paramount-stremio" className="text-xs text-gray-500 hover:underline dark:text-gray-400">Source Code</a>
                         <span className="mx-2 text-gray-300 dark:text-gray-700">•</span>
-                        <a href="https://buymeacoffee.com/rionoir" className="text-xs text-purple-900 hover:underline dark:text-purple-400">Buy me a coffee</a>
+                        <a href="https://buymeacoffee.com/rionoir" className="text-xs text-gray-500 hover:underline dark:text-gray-400">Buy me a coffee</a>
                     </div>
                 </div>
             </footer>

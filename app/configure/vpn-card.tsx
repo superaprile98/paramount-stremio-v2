@@ -2,81 +2,6 @@
 
 import { useState, useEffect } from "react";
 
-/* ── Icone SVG inline (stessa famiglia, stroke 1.5, 16×16) ───── */
-
-function IconPlus() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-    );
-}
-function IconTrash() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
-    );
-}
-function IconCheck() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-        </svg>
-    );
-}
-function IconPing() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-        </svg>
-    );
-}
-function IconSpeed() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-        </svg>
-    );
-}
-function IconChevronDown() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 12 15 18 9" />
-        </svg>
-    );
-}
-function IconChevronRight() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-        </svg>
-    );
-}
-function IconRefresh() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-        </svg>
-    );
-}
-function IconShield() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-    );
-}
-
-function Spinner() {
-    return (
-        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-    );
-}
-
 /* ── Types ────────────────────────────────────────────────────── */
 
 type ProbeResult = {
@@ -128,14 +53,16 @@ function isShareLink(input: string): boolean {
     return /^(vless|vmess|trojan|ss|hysteria2):\/\//i.test(input.trim());
 }
 
-/** Colore per il chip delay: ms + label TCP/TUN. */
-function delayChip(ms: number | null | undefined, via?: "tunnel" | "tcp"): { bg: string; text: string; label: string } {
-    const suffix = via === "tunnel" ? " via tunnel" : via === "tcp" ? " TCP" : "";
-    if (ms == null) return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-400 dark:text-gray-500", label: "\u2014 ms" + suffix };
-    if (ms <= 150) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: `${ms} ms${suffix}` };
-    if (ms <= 300) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: `${ms} ms${suffix}` };
-    if (ms <= 600) return { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300", label: `${ms} ms${suffix}` };
-    return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: `${ms} ms${suffix}` };
+/** Label testuale pura per il delay: niente colore, solo testo grigio. */
+function delayLabel(ms: number | null | undefined, via?: "tunnel" | "tcp"): string {
+    const suffix = via === "tunnel" ? " via tunnel" : via === "tcp" ? " (TCP)" : "";
+    if (ms == null) return "\u2014 ms" + suffix;
+    return `${ms} ms${suffix}`;
+}
+
+function formatSpeed(speed: { downMbps: number; upMbps: number } | null | undefined): string {
+    if (!speed) return "";
+    return `${speed.downMbps}/${speed.upMbps} Mbps`;
 }
 
 /* ── Component ────────────────────────────────────────────────── */
@@ -436,47 +363,46 @@ export function VpnSetupCard({
     const activeEntry = savedServers.find((s) => s.id === activeId) ?? null;
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             {/* ── Header ── */}
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
-                    <IconShield />
-                    {isVlessActive ? "Connesso (tunnel tuo)" : "Nessun tunnel attivo"}
-                </h3>
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">VPN</h3>
+                    {isVlessActive ? (
+                        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 mr-1.5" />
+                            Connesso · {activeEntry?.label ?? "Tunnel"}
+                        </p>
+                    ) : (
+                        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Nessun tunnel attivo</p>
+                    )}
+                </div>
                 {!editing && (
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => { setEditing(true); setTestResult(null); setPreviewServers(null); }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-                        >
-                            <IconPlus />
-                            Aggiungi server
-                        </button>
-                        {isVlessActive && (
-                            <button onClick={clearAll} disabled={loading}
-                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300">
-                                <IconTrash />
-                                Disattiva
-                            </button>
-                        )}
-                    </div>
+                    <button
+                        onClick={() => { setEditing(true); setTestResult(null); setPreviewServers(null); }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                        + Aggiungi server
+                    </button>
                 )}
             </div>
 
             {isVlessActive && !editing ? (
                 /* Stato attivo */
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
-                    <p>
-                        <span className="font-semibold">{activeEntry?.label ?? "Tunnel"}</span>
-                        {" \u00b7 "}{activeEntry?.serverTag ?? "auto"}
-                    </p>
-                    <p className="mt-1 text-xs opacity-75">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
+                    <p className="font-medium">{activeEntry?.label ?? "Tunnel"}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Il traffico del tuo addon esce dal tuo inbound sing-box dedicato.
                     </p>
+                    {activeEntry?.serverTag && activeEntry.serverTag !== "auto" && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Nodo: {activeEntry.serverTag}
+                        </p>
+                    )}
                 </div>
             ) : (
                 /* Form */
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                         Collega la tua VPN: incolla un URL subscription, uno share-link
                         diretto oppure la config completa (Xray JSON).
@@ -487,7 +413,7 @@ export function VpnSetupCard({
                         <button
                             type="button"
                             onClick={() => { setInputMode("url"); setPreviewServers(null); }}
-                            className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "url"
+                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${inputMode === "url"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
                                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
@@ -496,7 +422,7 @@ export function VpnSetupCard({
                         <button
                             type="button"
                             onClick={() => { setInputMode("config"); setPreviewServers(null); }}
-                            className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition ${inputMode === "config"
+                            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${inputMode === "config"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
                                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
@@ -510,7 +436,7 @@ export function VpnSetupCard({
                             onChange={(e) => setSubscriptionUrl(e.target.value)}
                             placeholder="https://provider.com/sub?token=\u2026  oppure  vless://\u2026"
                             autoComplete="off" spellCheck={false}
-                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                         />
                     ) : (
                         <textarea
@@ -519,14 +445,14 @@ export function VpnSetupCard({
                             placeholder="Incolla qui la config completa (Xray/V2Ray JSON) o uno share-link\u2026"
                             rows={6}
                             autoComplete="off" spellCheck={false}
-                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                         />
                     )}
 
                     <div className="flex gap-2">
                         <button onClick={fetchServers} disabled={previewLoading || loading}
-                            className="flex-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 inline-flex items-center justify-center gap-1">
-                            {previewLoading ? <><Spinner /> Caricamento...</> : "Fetch servers"}
+                            className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                            {previewLoading ? "Caricamento..." : "Fetch servers"}
                         </button>
                         {editing && (
                             <button onClick={() => { setEditing(false); setTestResult(null); }}
@@ -539,7 +465,7 @@ export function VpnSetupCard({
                     {previewServers && previewServers.length > 0 && (
                         <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
                             <select value={serverTag} onChange={(e) => setServerTag(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                                 <option value="auto">Auto (failover automatico)</option>
                                 {previewServers.map((s) => (
                                     <option key={s.tag} value={s.tag}>
@@ -550,9 +476,9 @@ export function VpnSetupCard({
                             <div className="max-h-32 overflow-y-auto space-y-1">
                                 {previewServers.map((s) => (
                                     <div key={s.tag} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-800">
-                                        <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">{s.tag}</span>
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">{s.protocol}</span>
-                                        <span className="ml-auto font-mono text-gray-500 dark:text-gray-400">{s.host}:{s.port}</span>
+                                        <span className="font-mono font-medium text-gray-800 dark:text-gray-200">{s.tag}</span>
+                                        <span className="text-[10px] uppercase text-gray-400 dark:text-gray-500">{s.protocol}</span>
+                                        <span className="ml-auto font-mono text-gray-400 dark:text-gray-500">{s.host}:{s.port}</span>
                                     </div>
                                 ))}
                             </div>
@@ -560,17 +486,15 @@ export function VpnSetupCard({
                     )}
 
                     <button onClick={submitVless} disabled={loading || testing}
-                        className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-1">
-                        {loading ? <><Spinner /> Salvando...</>
-                            : testing ? <><Spinner /> Testando...</>
-                                : "Salva e connetti"}
+                        className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                        {loading ? "Salvando..." : testing ? "Testando..." : "Salva e connetti"}
                     </button>
                 </div>
             )}
 
             {/* ── Lista server salvati ── */}
             {savedServers.length > 0 && (
-                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
+                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
                     <div className="mb-2 flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                             Server salvati ({savedServers.length})
@@ -578,120 +502,125 @@ export function VpnSetupCard({
                         <button
                             onClick={() => loadFreeSource(true)}
                             disabled={freeSourceLoading}
-                            className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                             title="Aggiorna la lista dalla sorgente gratuita">
-                            {freeSourceLoading ? <><Spinner /> Aggiorno...</> : <><IconRefresh /> Sorgente gratuita</>}
+                            {freeSourceLoading ? "Aggiorno..." : "↻ Aggiorna sorgente gratuita"}
                         </button>
                     </div>
                     <div className="space-y-1 max-h-72 overflow-y-auto">
                         {savedServers.map((s) => {
-                            const delay = s.lastDelayTest ? delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via) : null;
+                            const delay = s.lastDelayTest;
                             const speed = s.lastSpeedTest;
+                            const isActive = s.id === activeId;
+                            const isExpanded = expandedId === s.id;
                             return (
                                 <div key={s.id}
-                                    className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
-                                        ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                    className={`rounded-lg border px-2 py-1.5 text-xs ${isActive
+                                        ? "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
                                         : "border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
                                         }`}>
-                                    {/* Riga 1: nome + kind + stato + azioni */}
+                                    {/* Riga 1: nome + kind + stato + chevron (solo espansione) */}
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => toggleExpand(s.id)}
-                                            className="flex-1 text-left flex items-center gap-1.5 min-w-0"
-                                            title="Mostra nodi e opzioni">
-                                            {expandedId === s.id ? <IconChevronDown /> : <IconChevronRight />}
-                                            <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                            className="flex-1 text-left flex items-center gap-2 min-w-0"
+                                            title={isExpanded ? "Chiudi" : "Mostra nodi e opzioni"}>
+                                            <span className="text-gray-400 dark:text-gray-500">{isExpanded ? "\u25be" : "\u25b8"}</span>
+                                            <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                                 {s.label}
                                             </span>
                                             <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                                                 {s.kind}
                                             </span>
                                             {s.serverTag && s.serverTag !== "auto" && (
-                                                <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                                                <span className="shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
                                                     {s.serverTag}
                                                 </span>
                                             )}
-                                        </button>
-
-                                        {/* Bottone Attiva / Attivo */}
-                                        {s.id === activeId ? (
-                                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
-                                                <IconCheck />
-                                                Attivo
-                                            </span>
-                                        ) : (
-                                            <button
-                                                onClick={() => switchServer(s.id)}
-                                                disabled={switchingId !== null}
-                                                className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-700 dark:bg-gray-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 shrink-0"
-                                                title="Attiva questo tunnel">
-                                                {switchingId === s.id ? <Spinner /> : null}
-                                                Attiva
-                                            </button>
-                                        )}
-
-                                        {/* Delay test */}
-                                        <button
-                                            onClick={() => delayTest(s.id)}
-                                            disabled={delayingId !== null}
-                                            className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium ${delay ? delay.bg + " " + delay.text : "text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 dark:text-gray-400"} disabled:opacity-40 shrink-0`}
-                                            title="Test latenza (Clash API se attivo, TCP dial altrimenti)">
-                                            {delayingId === s.id ? <Spinner /> : <IconPing />}
-                                            {delay ? delay.label : "Delay"}
-                                        </button>
-
-                                        {/* Speed test (solo attivo) */}
-                                        {s.id === activeId && (
-                                            <button
-                                                onClick={() => speedTest(s.id)}
-                                                disabled={testingId !== null}
-                                                className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium ${speed ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:text-gray-400"} disabled:opacity-40 shrink-0`}
-                                                title="Test velocit\u00e0 (banda reale)">
-                                                {testingId === s.id ? <Spinner /> : <IconSpeed />}
-                                                {speed ? `${speed.downMbps}/${speed.upMbps} Mbps` : "Speed"}
-                                            </button>
-                                        )}
-
-                                        {/* Trash (ghost on hover) */}
-                                        <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                            className="rounded p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                                            title="Rimuovi dalla lista">
-                                            <IconTrash />
+                                            {isActive && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-700 dark:text-gray-300 shrink-0">
+                                                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                    Attivo
+                                                </span>
+                                            )}
                                         </button>
                                     </div>
 
-                                    {/* Riga 2: metriche (delay + speed) */}
-                                    {(delay || speed) && (
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] ml-6">
-                                            {delay && (
-                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${delay.bg} ${delay.text}`}>
-                                                    {delay.label}
-                                                </span>
-                                            )}
-                                            {speed && (
-                                                <span className="rounded bg-blue-100 px-1.5 py-0.5 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                                    {speed.downMbps}/{speed.upMbps} Mbps
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Pannello espandibile: nodi + selettore auto/nodo */}
-                                    {expandedId === s.id && (
+                                    {/* Pannello espandibile: azioni + nodi */}
+                                    {isExpanded && (
                                         <div className="mt-2 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
+                                            {/* Azioni */}
+                                            <div className="flex flex-wrap gap-2">
+                                                {!isActive ? (
+                                                    <button
+                                                        onClick={() => switchServer(s.id)}
+                                                        disabled={switchingId !== null}
+                                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                                                        title="Attiva questo tunnel">
+                                                        {switchingId === s.id ? "..." : "Attiva"}
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                        Attivo
+                                                    </span>
+                                                )}
+
+                                                <button
+                                                    onClick={() => delayTest(s.id)}
+                                                    disabled={delayingId !== null}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                                    title="Test latenza (Clash API se attivo, TCP dial altrimenti)">
+                                                    {delayingId === s.id ? "Test..." : "Delay test"}
+                                                </button>
+
+                                                {isActive && (
+                                                    <button
+                                                        onClick={() => speedTest(s.id)}
+                                                        disabled={testingId !== null}
+                                                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                                        title="Test velocit\u00e0 (banda reale)">
+                                                        {testingId === s.id ? "Test..." : "Speed test"}
+                                                    </button>
+                                                )}
+
+                                                <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                                    className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
+                                                    title="Rimuovi dalla lista">
+                                                    ✕ Rimuovi
+                                                </button>
+                                                {isActive && (
+                                                    <button onClick={clearAll} disabled={switchingId !== null}
+                                                        className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
+                                                        title="Disattiva il server attivo">
+                                                        Disattiva
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Metriche */}
+                                            {(delay || speed) && (
+                                                <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
+                                                    {delay && (
+                                                        <span>{delayLabel(delay.avgDelayMs, delay.via)} <span className="text-gray-400 dark:text-gray-500">({delay.okCount}/{delay.totalCount} ok)</span></span>
+                                                    )}
+                                                    {speed && (
+                                                        <span>Speed {formatSpeed(speed)}</span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Nodi */}
                                             {nodesLoadingId === s.id ? (
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
-                                                    <Spinner /> Carico i nodi\u2026
-                                                </p>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">Carico i nodi\u2026</p>
                                             ) : (nodesById[s.id]?.length ?? 0) === 0 ? (
                                                 <p className="text-[10px] text-gray-500 dark:text-gray-400">Nessun nodo disponibile (subscription irraggiungibile?)</p>
                                             ) : (
                                                 <>
-                                                    {/* Lista radio: Auto + nodi */}
                                                     <div className="space-y-1 max-h-40 overflow-y-auto">
                                                         {/* Opzione Auto */}
                                                         <label className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${(s.serverTag || "auto") === "auto"
-                                                            ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                                            ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
                                                             : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
                                                             }`}>
                                                             <input
@@ -702,21 +631,20 @@ export function VpnSetupCard({
                                                                 onChange={() => switchServer(s.id, "auto")}
                                                                 className="accent-emerald-600"
                                                             />
-                                                            <span className="font-semibold text-gray-800 dark:text-gray-200">Auto</span>
+                                                            <span className="font-medium text-gray-800 dark:text-gray-200">Auto</span>
                                                             <span className="text-gray-500 dark:text-gray-400">failover su tutti i nodi</span>
-                                                            {s.lastDelayTest && (
-                                                                <span className={`ml-auto rounded px-1.5 py-0.5 font-semibold ${delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).bg} ${delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).text}`}>
-                                                                    {delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).label}
+                                                            {delay && (
+                                                                <span className="ml-auto text-gray-400 dark:text-gray-500">
+                                                                    {delayLabel(delay.avgDelayMs, delay.via)}
                                                                 </span>
                                                             )}
                                                         </label>
                                                         {nodesById[s.id].map((n) => {
-                                                            const sample = s.lastDelayTest?.samples.find((x) => x.host === n.tag);
-                                                            const dc = delayChip(sample ? sample.delayMs : null);
+                                                            const sample = delay?.samples.find((x) => x.host === n.tag);
                                                             const isSelected = s.serverTag === n.tag;
                                                             return (
                                                                 <label key={n.tag} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${isSelected
-                                                                    ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                                                    ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
                                                                     : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
                                                                     }`}>
                                                                     <input
@@ -727,17 +655,17 @@ export function VpnSetupCard({
                                                                         onChange={() => switchServer(s.id, n.tag)}
                                                                         className="accent-emerald-600"
                                                                     />
-                                                                    <span className="font-mono font-semibold text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
+                                                                    <span className="font-mono font-medium text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
                                                                     <span className="text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
-                                                                    <span className={`ml-auto rounded px-1.5 py-0.5 font-semibold ${dc.bg} ${dc.text}`}>
-                                                                        {dc.label}
+                                                                    <span className="ml-auto text-gray-400 dark:text-gray-500">
+                                                                        {delayLabel(sample ? sample.delayMs : null, delay?.via)}
                                                                     </span>
                                                                 </label>
                                                             );
                                                         })}
                                                     </div>
                                                     <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                                        Seleziona un nodo per attivarlo subito, o "Auto" per il failover. Premi "Delay" per aggiornare i valori.
+                                                        Seleziona un nodo per attivarlo subito, o &ldquo;Auto&rdquo; per il failover. Usa &ldquo;Delay test&rdquo; per aggiornare i valori. &ldquo;via tunnel&rdquo; = latenza reale via proxy; &ldquo;TCP&rdquo; = sola handshake.
                                                     </p>
                                                 </>
                                             )}
@@ -752,16 +680,16 @@ export function VpnSetupCard({
 
             {/* Test result (auto) */}
             {testResult && (
-                <div className={`mt-3 rounded-xl border p-3 text-sm ${testResult.ok ? "border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
-                    : testResult.vpnDetected || testResult.geoBlocked ? "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300"
-                        : "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"}`}>
-                    <div className="font-semibold">
+                <div className={`mt-3 rounded-xl border p-3 text-sm ${testResult.ok ? "border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
+                    : testResult.vpnDetected || testResult.geoBlocked ? "border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
+                        : "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"}`}>
+                    <div className="font-medium">
                         {testResult.ok ? "Connection OK"
                             : testResult.vpnDetected ? "VPN detected by Paramount+"
                                 : testResult.geoBlocked ? "Geo-blocked (HTTP 451)"
                                     : "Connection failed"}
                     </div>
-                    <div className="mt-1 text-xs space-x-1">
+                    <div className="mt-1 text-xs space-x-1 text-gray-500 dark:text-gray-400">
                         {testResult.proxy && <span>Proxy: <code className="font-mono">{maskUrl(testResult.proxy)}</code></span>}
                         {testResult.statusCode !== undefined && <span>\u00b7 HTTP {testResult.statusCode}</span>}
                         {testResult.ip && <span>\u00b7 IP: <code className="font-mono">{testResult.ip}</code></span>}
@@ -769,7 +697,7 @@ export function VpnSetupCard({
                         {testResult.city && <span>\u00b7 {testResult.city}</span>}
                         <span>\u00b7 {testResult.elapsedMs}ms</span>
                     </div>
-                    {testResult.error && <div className="mt-1 text-xs opacity-75">{testResult.error}</div>}
+                    {testResult.error && <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{testResult.error}</div>}
                 </div>
             )}
         </div>
