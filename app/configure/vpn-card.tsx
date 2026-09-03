@@ -60,11 +60,6 @@ function delayLabel(ms: number | null | undefined, via?: "tunnel" | "tcp"): stri
     return `${ms} ms${suffix}`;
 }
 
-function formatSpeed(speed: { downMbps: number; upMbps: number } | null | undefined): string {
-    if (!speed) return "";
-    return `${speed.downMbps}/${speed.upMbps} Mbps`;
-}
-
 /* ── Component ────────────────────────────────────────────────── */
 
 export function VpnSetupCard({
@@ -79,17 +74,15 @@ export function VpnSetupCard({
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
-    type SavedSpeedTest = { at: string; downMbps: number; upMbps: number; latencyMs: number; grade: string; error?: string };
     type SavedDelayTest = { at: string; avgDelayMs: number | null; okCount: number; totalCount: number; via: "tunnel" | "tcp"; samples: { host: string; delayMs: number }[] };
     type SavedServer = {
         id: string; label: string; kind: string; serverTag: string; addedAt: string;
-        lastSpeedTest?: SavedSpeedTest | null;
+        autoProvisioned?: boolean;
         lastDelayTest?: SavedDelayTest | null;
     };
     const [savedServers, setSavedServers] = useState<SavedServer[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [switchingId, setSwitchingId] = useState<string | null>(null);
-    const [testingId, setTestingId] = useState<string | null>(null);
     const [delayingId, setDelayingId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [nodesById, setNodesById] = useState<Record<string, NodeInfo[]>>({});
@@ -141,23 +134,6 @@ export function VpnSetupCard({
             await refreshSaved();
         } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setDelayingId(null); }
-    }
-
-    async function speedTest(id: string) {
-        setTestingId(id);
-        try {
-            const r = await fetch("/api/configure/vpn-speedtest", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id }),
-            });
-            const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
-            const t = j.result;
-            onToast(`Down ${t.downMbps} Mbps \u00b7 Up ${t.upMbps} Mbps \u00b7 ${t.latencyMs} ms`);
-            await refreshSaved();
-        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
-        finally { setTestingId(null); }
     }
 
     async function refreshSaved() {
@@ -347,16 +323,6 @@ export function VpnSetupCard({
         finally { setLoading(false); }
     }
 
-    /* ── Reset (solo per-utente: rimuove la voce attiva) ── */
-
-    async function clearAll() {
-        if (!activeId) return;
-        if (!confirm("Disattivare e rimuovere il server attivo dalla tua lista?")) return;
-        await deleteServer(activeId);
-        setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null); setTestResult(null); setEditing(false);
-        onVpnActiveChange(false);
-    }
-
     /* ── render ── */
 
     const isVlessActive = activeId !== null;
@@ -492,191 +458,169 @@ export function VpnSetupCard({
                 </div>
             )}
 
-            {/* ── Lista server salvati ── */}
-            {savedServers.length > 0 && (
-                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                            Server salvati ({savedServers.length})
+            {/* ── Lista server salvati (le entry auto-provisionate sono nascoste, mostrate solo nel contatore) ── */}
+            {savedServers.filter((s) => !s.autoProvisioned).length + savedServers.filter((s) => !!s.autoProvisioned).length > 0 && (() => {
+                const visibleServers = savedServers.filter((s) => !s.autoProvisioned);
+                const freeCount = savedServers.filter((s) => !!s.autoProvisioned).length;
+                return (
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
+                        <p className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            Server salvati ({visibleServers.length}){freeCount > 0 ? ` \u00b7 ${freeCount} gratuiti` : ""}
                         </p>
-                        <button
-                            onClick={() => loadFreeSource(true)}
-                            disabled={freeSourceLoading}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                            title="Aggiorna la lista dalla sorgente gratuita">
-                            {freeSourceLoading ? "Aggiorno..." : "↻ Aggiorna sorgente gratuita"}
-                        </button>
-                    </div>
-                    <div className="space-y-1 max-h-72 overflow-y-auto">
-                        {savedServers.map((s) => {
-                            const delay = s.lastDelayTest;
-                            const speed = s.lastSpeedTest;
-                            const isActive = s.id === activeId;
-                            const isExpanded = expandedId === s.id;
-                            return (
-                                <div key={s.id}
-                                    className={`rounded-lg border px-2 py-1.5 text-xs ${isActive
-                                        ? "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
-                                        : "border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
-                                        }`}>
-                                    {/* Riga 1: nome + kind + stato + chevron (solo espansione) */}
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => toggleExpand(s.id)}
-                                            className="flex-1 text-left flex items-center gap-2 min-w-0"
-                                            title={isExpanded ? "Chiudi" : "Mostra nodi e opzioni"}>
-                                            <span className="text-gray-400 dark:text-gray-500">{isExpanded ? "\u25be" : "\u25b8"}</span>
-                                            <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                {s.label}
-                                            </span>
-                                            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                                                {s.kind}
-                                            </span>
-                                            {s.serverTag && s.serverTag !== "auto" && (
-                                                <span className="shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
-                                                    {s.serverTag}
+                        <div className="space-y-1 max-h-72 overflow-y-auto">
+                            {visibleServers.map((s) => {
+                                const delay = s.lastDelayTest;
+                                const isActive = s.id === activeId;
+                                const isExpanded = expandedId === s.id;
+                                return (
+                                    <div key={s.id}
+                                        className={`rounded-lg border px-2 py-1.5 text-xs ${isActive
+                                            ? "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
+                                            : "border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                                            }`}>
+                                        {/* Riga 1: nome + kind + stato + ✕ Rimuovi (sulla destra, sempre visibile) */}
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => toggleExpand(s.id)}
+                                                className="flex-1 text-left flex items-center gap-2 min-w-0"
+                                                title={isExpanded ? "Chiudi" : "Mostra nodi e opzioni"}>
+                                                <span className="text-gray-400 dark:text-gray-500">{isExpanded ? "\u25be" : "\u25b8"}</span>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                                    {s.label}
                                                 </span>
-                                            )}
-                                            {isActive && (
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-700 dark:text-gray-300 shrink-0">
-                                                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                    Attivo
+                                                <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                                    {s.kind}
                                                 </span>
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {/* Pannello espandibile: azioni + nodi */}
-                                    {isExpanded && (
-                                        <div className="mt-2 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
-                                            {/* Azioni */}
-                                            <div className="flex flex-wrap gap-2">
-                                                {!isActive ? (
-                                                    <button
-                                                        onClick={() => switchServer(s.id)}
-                                                        disabled={switchingId !== null}
-                                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
-                                                        title="Attiva questo tunnel">
-                                                        {switchingId === s.id ? "..." : "Attiva"}
-                                                    </button>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                {s.serverTag && s.serverTag !== "auto" && (
+                                                    <span className="shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
+                                                        {s.serverTag}
+                                                    </span>
+                                                )}
+                                                {isActive && (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-700 dark:text-gray-300 shrink-0">
                                                         <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                                         Attivo
                                                     </span>
                                                 )}
+                                            </button>
+                                            <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                                className="shrink-0 rounded-md p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
+                                                title="Rimuovi dalla lista"
+                                                aria-label="Rimuovi dalla lista">
+                                                ✕
+                                            </button>
+                                        </div>
 
-                                                <button
-                                                    onClick={() => delayTest(s.id)}
-                                                    disabled={delayingId !== null}
-                                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                                                    title="Test latenza (Clash API se attivo, TCP dial altrimenti)">
-                                                    {delayingId === s.id ? "Test..." : "Delay test"}
-                                                </button>
+                                        {/* Pannello espandibile: azioni + nodi */}
+                                        {isExpanded && (
+                                            <div className="mt-2 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
+                                                {/* Azioni */}
+                                                <div className="flex flex-wrap gap-2">
+                                                    {!isActive ? (
+                                                        <button
+                                                            onClick={() => switchServer(s.id)}
+                                                            disabled={switchingId !== null}
+                                                            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                                                            title="Attiva questo tunnel">
+                                                            {switchingId === s.id ? "..." : "Attiva"}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                            Attivo
+                                                        </span>
+                                                    )}
 
-                                                {isActive && (
                                                     <button
-                                                        onClick={() => speedTest(s.id)}
-                                                        disabled={testingId !== null}
+                                                        onClick={() => delayTest(s.id)}
+                                                        disabled={delayingId !== null}
                                                         className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                                                        title="Test velocit\u00e0 (banda reale)">
-                                                        {testingId === s.id ? "Test..." : "Speed test"}
+                                                        title="Test latenza (Clash API se attivo, TCP dial altrimenti)">
+                                                        {delayingId === s.id ? "Test..." : "Delay test"}
                                                     </button>
+
+                                                    <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
+                                                        className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
+                                                        title="Rimuovi dalla lista">
+                                                        ✕ Rimuovi
+                                                    </button>
+                                                </div>
+
+                                                {/* Metriche */}
+                                                {delay && (
+                                                    <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
+                                                        <span>{delayLabel(delay.avgDelayMs, delay.via)} <span className="text-gray-400 dark:text-gray-500">({delay.okCount}/{delay.totalCount} ok)</span></span>
+                                                    </div>
                                                 )}
 
-                                                <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                                    className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
-                                                    title="Rimuovi dalla lista">
-                                                    ✕ Rimuovi
-                                                </button>
-                                                {isActive && (
-                                                    <button onClick={clearAll} disabled={switchingId !== null}
-                                                        className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-900/30"
-                                                        title="Disattiva il server attivo">
-                                                        Disattiva
-                                                    </button>
+                                                {/* Nodi */}
+                                                {nodesLoadingId === s.id ? (
+                                                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Carico i nodi\u2026</p>
+                                                ) : (nodesById[s.id]?.length ?? 0) === 0 ? (
+                                                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Nessun nodo disponibile (subscription irraggiungibile?)</p>
+                                                ) : (
+                                                    <>
+                                                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                            {/* Opzione Auto */}
+                                                            <label className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${(s.serverTag || "auto") === "auto"
+                                                                ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
+                                                                : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                                                                }`}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`node-${s.id}`}
+                                                                    value="auto"
+                                                                    checked={(s.serverTag || "auto") === "auto"}
+                                                                    onChange={() => switchServer(s.id, "auto")}
+                                                                    className="accent-emerald-600"
+                                                                />
+                                                                <span className="font-medium text-gray-800 dark:text-gray-200">Auto</span>
+                                                                <span className="text-gray-500 dark:text-gray-400">failover su tutti i nodi</span>
+                                                                {delay && (
+                                                                    <span className="ml-auto text-gray-400 dark:text-gray-500">
+                                                                        {delayLabel(delay.avgDelayMs, delay.via)}
+                                                                    </span>
+                                                                )}
+                                                            </label>
+                                                            {nodesById[s.id].map((n) => {
+                                                                const sample = delay?.samples.find((x) => x.host === n.tag);
+                                                                const isSelected = s.serverTag === n.tag;
+                                                                return (
+                                                                    <label key={n.tag} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${isSelected
+                                                                        ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
+                                                                        : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                                                                        }`}>
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`node-${s.id}`}
+                                                                            value={n.tag}
+                                                                            checked={isSelected}
+                                                                            onChange={() => switchServer(s.id, n.tag)}
+                                                                            className="accent-emerald-600"
+                                                                        />
+                                                                        <span className="font-mono font-medium text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
+                                                                        <span className="text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
+                                                                        <span className="ml-auto text-gray-400 dark:text-gray-500">
+                                                                            {delayLabel(sample ? sample.delayMs : null, delay?.via)}
+                                                                        </span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                                            Seleziona un nodo per attivarlo subito, o &ldquo;Auto&rdquo; per il failover. Usa &ldquo;Delay test&rdquo; per aggiornare i valori. &ldquo;via tunnel&rdquo; = latenza reale via proxy; &ldquo;TCP&rdquo; = sola handshake.
+                                                        </p>
+                                                    </>
                                                 )}
                                             </div>
-
-                                            {/* Metriche */}
-                                            {(delay || speed) && (
-                                                <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
-                                                    {delay && (
-                                                        <span>{delayLabel(delay.avgDelayMs, delay.via)} <span className="text-gray-400 dark:text-gray-500">({delay.okCount}/{delay.totalCount} ok)</span></span>
-                                                    )}
-                                                    {speed && (
-                                                        <span>Speed {formatSpeed(speed)}</span>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* Nodi */}
-                                            {nodesLoadingId === s.id ? (
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">Carico i nodi\u2026</p>
-                                            ) : (nodesById[s.id]?.length ?? 0) === 0 ? (
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">Nessun nodo disponibile (subscription irraggiungibile?)</p>
-                                            ) : (
-                                                <>
-                                                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                                                        {/* Opzione Auto */}
-                                                        <label className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${(s.serverTag || "auto") === "auto"
-                                                            ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
-                                                            : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
-                                                            }`}>
-                                                            <input
-                                                                type="radio"
-                                                                name={`node-${s.id}`}
-                                                                value="auto"
-                                                                checked={(s.serverTag || "auto") === "auto"}
-                                                                onChange={() => switchServer(s.id, "auto")}
-                                                                className="accent-emerald-600"
-                                                            />
-                                                            <span className="font-medium text-gray-800 dark:text-gray-200">Auto</span>
-                                                            <span className="text-gray-500 dark:text-gray-400">failover su tutti i nodi</span>
-                                                            {delay && (
-                                                                <span className="ml-auto text-gray-400 dark:text-gray-500">
-                                                                    {delayLabel(delay.avgDelayMs, delay.via)}
-                                                                </span>
-                                                            )}
-                                                        </label>
-                                                        {nodesById[s.id].map((n) => {
-                                                            const sample = delay?.samples.find((x) => x.host === n.tag);
-                                                            const isSelected = s.serverTag === n.tag;
-                                                            return (
-                                                                <label key={n.tag} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${isSelected
-                                                                    ? "border-gray-400 bg-white dark:border-gray-500 dark:bg-gray-800"
-                                                                    : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
-                                                                    }`}>
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`node-${s.id}`}
-                                                                        value={n.tag}
-                                                                        checked={isSelected}
-                                                                        onChange={() => switchServer(s.id, n.tag)}
-                                                                        className="accent-emerald-600"
-                                                                    />
-                                                                    <span className="font-mono font-medium text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
-                                                                    <span className="text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
-                                                                    <span className="ml-auto text-gray-400 dark:text-gray-500">
-                                                                        {delayLabel(sample ? sample.delayMs : null, delay?.via)}
-                                                                    </span>
-                                                                </label>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                                        Seleziona un nodo per attivarlo subito, o &ldquo;Auto&rdquo; per il failover. Usa &ldquo;Delay test&rdquo; per aggiornare i valori. &ldquo;via tunnel&rdquo; = latenza reale via proxy; &ldquo;TCP&rdquo; = sola handshake.
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Test result (auto) */}
             {testResult && (
