@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     // segreti) per il selettore "auto | nodo specifico" nella UI.
     const id = req.nextUrl.searchParams.get("id");
     if (id) {
-        const store = await loadUserVpnStore(auth.userId);
+        const store = await loadUserVpnStore(auth.browserId);
         const entry = store.servers.find((s) => s.id === id);
         if (!entry) return NextResponse.json({ ok: false, error: "voce non trovata" }, { status: 404 });
         let nodes: { tag: string; host: string; port: number; protocol: string }[] = [];
@@ -51,13 +51,13 @@ export async function GET(req: NextRequest) {
             // cache per non rifare il fetch ad ogni apertura
             if (entry.resolvedServers?.length === 0 || !entry.resolvedServers) {
                 entry.resolvedServers = resolved;
-                await saveUserVpnStore(auth.userId, store);
+                await saveUserVpnStore(auth.browserId, store);
             }
         } catch { /* subscription irraggiungibile: lista vuota */ }
         return NextResponse.json({ ok: true, id, serverTag: entry.serverTag, nodes });
     }
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     return NextResponse.json({
         servers: store.servers.map(maskInput),
         activeId: store.activeId,
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "subscription deve essere un URL http(s)" }, { status: 400 });
     }
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     if (store.servers.length >= MAX_SERVERS) {
         return NextResponse.json({ ok: false, error: `Limite di ${MAX_SERVERS} server raggiunto` }, { status: 400 });
     }
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     };
     store.servers.push(entry);
     if (!store.activeId) store.activeId = entry.id;
-    await saveUserVpnStore(auth.userId, store);
+    await saveUserVpnStore(auth.browserId, store);
 
     return NextResponse.json({ ok: true, id: entry.id, servers: store.servers.map(maskInput), activeId: store.activeId });
 }
@@ -111,14 +111,14 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ ok: false, error: "id mancante" }, { status: 400 });
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     const before = store.servers.length;
     store.servers = store.servers.filter((s) => s.id !== id);
     if (store.servers.length === before) {
         return NextResponse.json({ ok: false, error: "voce non trovata" }, { status: 404 });
     }
     if (store.activeId === id) store.activeId = store.servers[0]?.id ?? null;
-    await saveUserVpnStore(auth.userId, store);
+    await saveUserVpnStore(auth.browserId, store);
 
     return NextResponse.json({ ok: true, servers: store.servers.map(maskInput), activeId: store.activeId });
 }

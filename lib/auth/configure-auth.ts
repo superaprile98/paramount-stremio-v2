@@ -13,6 +13,8 @@ import { seal, unseal } from "@/lib/auth/jwe";
  */
 
 export const CONFIG_COOKIE = "configure_session";
+/** Cookie di identità per-browser: chiave dello storage VLESS (ogni browser la sua lista). */
+export const BROWSER_COOKIE = "vpn_browser_id";
 export const CONFIG_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 giorni
 
 export interface ConfigureSession {
@@ -91,9 +93,17 @@ export function sanitizeUserId(username: string): string {
 /**
  * Helper per le API protette: verifica il cookie di sessione e ritorna
  * l'identità utente (userId sanitizzato) o null.
+ *
+ * Ritorna anche `browserId`: identità per-browser letta dal cookie
+ * `vpn_browser_id` (emesso dal middleware). È la chiave dello storage
+ * VLESS e delle porte sing-box, così ogni browser ha la SUA lista
+ * anche se il login è condiviso. Fallback: ID username-based
+ * (comportamento legacy) se il cookie non è ancora stato emesso.
  */
-export async function requireConfigureUser(req: NextRequest): Promise<{ userId: string; username: string } | null> {
+export async function requireConfigureUser(req: NextRequest): Promise<{ userId: string; username: string; browserId: string } | null> {
     const session = await verifyConfigureSession(req.cookies.get(CONFIG_COOKIE)?.value);
     if (!session) return null;
-    return { userId: sanitizeUserId(session.u), username: session.u };
+    const rawBrowserId = req.cookies.get(BROWSER_COOKIE)?.value;
+    const browserId = sanitizeUserId(rawBrowserId || session.u);
+    return { userId: sanitizeUserId(session.u), username: session.u, browserId };
 }

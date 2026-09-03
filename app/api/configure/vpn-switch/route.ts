@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     // serverTag opzionale: "auto" (default) o il tag di un nodo specifico.
     const serverTag = String((body as any)?.serverTag || "").trim();
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     const entry = store.servers.find((s) => s.id === id);
     if (!entry) return NextResponse.json({ ok: false, error: "voce non trovata" }, { status: 404 });
 
@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
         entry.resolvedServers = servers;
         if (serverTag) entry.serverTag = serverTag;
         store.activeId = entry.id;
-        await saveUserVpnStore(auth.userId, store);
+        await saveUserVpnStore(auth.browserId, store);
 
         // 3) Rigenera la config multi-tenant per TUTTI gli utenti con tunnel attivo
-        ensureUserPort(auth.userId);
+        ensureUserPort(auth.browserId);
         const { activeTunnels, configPath } = await reconfigureAllVpns();
 
         return NextResponse.json({

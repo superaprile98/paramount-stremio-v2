@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     const id = String((body as any)?.id || store.activeId || "");
     const entry = store.servers.find((s) => s.id === id);
     if (!entry) return NextResponse.json({ ok: false, error: "voce non trovata" }, { status: 404 });
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "Solo la voce attiva ha un tunnel: attivala prima di testarla" }, { status: 400 });
     }
 
-    const proxyUrl = getUserProxyUrl(auth.userId);
+    const proxyUrl = getUserProxyUrl(auth.browserId);
     if (!proxyUrl) {
         return NextResponse.json({ ok: false, error: "Nessun tunnel attivo per il tuo utente" }, { status: 400 });
     }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     // Persisti il risultato sulla voce
     entry.lastSpeedTest = result;
-    await saveUserVpnStore(auth.userId, store);
+    await saveUserVpnStore(auth.browserId, store);
 
     return NextResponse.json({ ok: true, id: entry.id, result, proxyUrl });
 }

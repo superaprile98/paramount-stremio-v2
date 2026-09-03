@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     try { body = await req.json(); } catch { /* empty body ok */ }
     const timeoutMs = Math.min(5000, Math.max(500, Number(body.timeoutMs) || 2000));
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     if (store.servers.length === 0) {
         return NextResponse.json({ ok: true, results: [], message: "Nessun server configurato" });
     }
@@ -96,8 +96,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "Server non trovato" }, { status: 404 });
     }
 
-    // I proxy `u{userId}-*` nella config corrente appartengono alla voce ATTIVA.
-    const tagPrefix = `u${auth.userId}-`;
+    // I proxy `u{browserId}-*` nella config corrente appartengono alla voce ATTIVA.
+    const tagPrefix = `u${auth.browserId}-`;
     const clashProxies = (await listClashProxies()).filter((n) => n.startsWith(tagPrefix));
 
     const allResults: { serverId: string; via: "tunnel" | "tcp"; results: DelayEntry[] }[] = [];
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
                 .slice(0, 20),
         };
     }
-    await saveUserVpnStore(auth.userId, store);
+    await saveUserVpnStore(auth.browserId, store);
 
     // Appiattisci per il client, ordinato per delay crescente
     const flat: { serverId: string; label: string; delayMs: number | null; host: string; via: string }[] = [];

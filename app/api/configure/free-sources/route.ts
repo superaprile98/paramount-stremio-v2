@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     try { body = await req.json(); } catch { /* empty */ }
     const country = (body.country || 'US').toUpperCase();
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     const alreadyHas = store.servers.some((s) => s.autoProvisioned);
     if (alreadyHas && !body.force) {
         return NextResponse.json({ ok: true, skipped: true, message: "Sorgente gratuita già presente (usa force=true per aggiornarla)" });
@@ -66,11 +66,11 @@ export async function POST(req: NextRequest) {
     store.servers.push(entry);
     // Se l'utente non ha ancora un attivo, imposta questo come attivo
     if (!store.activeId) store.activeId = entry.id;
-    await saveUserVpnStore(auth.userId, store);
+    await saveUserVpnStore(auth.browserId, store);
 
     // Alloca porta e rigenera la config sing-box multi-tenant
     try {
-        ensureUserPort(auth.userId);
+        ensureUserPort(auth.browserId);
         await reconfigureAllVpns();
     } catch (e) {
         console.error('[free-sources] reconfigureAllVpns failed:', e);
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     const auth = await requireConfigureUser(req);
     if (!auth) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-    const store = await loadUserVpnStore(auth.userId);
+    const store = await loadUserVpnStore(auth.browserId);
     const entry = store.servers.find((s) => s.autoProvisioned);
     return NextResponse.json({
         ok: true,

@@ -100,9 +100,10 @@ function LocalAddressBanner({ manifestUrl, onDismiss }: { manifestUrl: string; o
 /* ── Toast ──────────────────────────────────────────────────── */
 
 function Toast({ msg, type = "success" }: { msg: string; type?: "success" | "error" | "info" }) {
-    const colors = type === "error" ? "bg-red-600" : type === "info" ? "bg-gray-700" : "bg-emerald-600";
+    // Toast neutro: solo il successo è verde, errori/info in grigio scuro (niente rosso, niente bounce)
+    const colors = type === "success" ? "bg-emerald-600" : "bg-gray-700";
     return (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-sm text-white shadow-lg z-50 ${colors} animate-bounce`}>
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-sm text-white shadow-lg z-50 ${colors}`}>
             {msg}
         </div>
     );
