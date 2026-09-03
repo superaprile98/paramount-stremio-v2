@@ -159,6 +159,18 @@ export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
     const rules: any[] = [];
     const firstOutTag = entries.length > 0 ? `out-${entries[0].userId}` : 'direct';
 
+    // sing-box esce con FATAL "duplicate outbound/endpoint tag" se due
+    // outbound condividono lo stesso tag. Le sorgenti gratuite (es.
+    // openproxylist) spesso producono più nodi con lo stesso `s.tag`,
+    // quindi deduplichiamo aggiungendo " #2", " #3", ... ai duplicati.
+    const seenTags = new Set<string>();
+    const uniqueTag = (base: string): string => {
+        if (!seenTags.has(base)) return base;
+        let n = 2;
+        while (seenTags.has(`${base} #${n}`)) n++;
+        return `${base} #${n}`;
+    };
+
     for (const entry of entries) {
         const inTag = `in-${entry.userId}`;
         const outTag = `out-${entry.userId}`;
@@ -172,7 +184,8 @@ export function buildMultiUserSingBoxConfig(entries: MultiUserEntry[]): object {
         const serverTags: string[] = [];
         for (const s of entry.servers) {
             if (s.transport === 'xhttp') continue; // non supportato da sing-box
-            const tag = `u${entry.userId}-${s.tag || `${s.host}:${s.port}`}`;
+            const tag = uniqueTag(`u${entry.userId}-${s.tag || `${s.host}:${s.port}`}`);
+            seenTags.add(tag);
             serverTags.push(tag);
             outbounds.push(buildOutbound(s, tag));
         }
