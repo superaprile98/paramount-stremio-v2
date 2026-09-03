@@ -2,7 +2,71 @@
 
 import { useState, useEffect } from "react";
 
-/* ── Spinner ──────────────────────────────────────────────────── */
+/* ── Icone SVG inline (stessa famiglia, stroke 1.5, 16×16) ───── */
+
+function IconPlus() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+    );
+}
+function IconTrash() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+    );
+}
+function IconCheck() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+        </svg>
+    );
+}
+function IconPing() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+        </svg>
+    );
+}
+function IconSpeed() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+    );
+}
+function IconChevronDown() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+        </svg>
+    );
+}
+function IconChevronRight() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+        </svg>
+    );
+}
+function IconRefresh() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+    );
+}
+function IconShield() {
+    return (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+    );
+}
 
 function Spinner() {
     return (
@@ -57,11 +121,21 @@ function maskUrl(url: string): string {
 }
 
 function maskSubscription(url: string): string {
-    return url.replace(/^(\w+:\/\/[^/]+).*$/, "$1/…");
+    return url.replace(/^(\w+:\/\/[^/]+).*$/, "$1/\u2026");
 }
 
 function isShareLink(input: string): boolean {
     return /^(vless|vmess|trojan|ss|hysteria2):\/\//i.test(input.trim());
+}
+
+/** Colore per il chip delay: ms + label TCP/TUN. */
+function delayChip(ms: number | null | undefined, via?: "tunnel" | "tcp"): { bg: string; text: string; label: string } {
+    const suffix = via === "tunnel" ? " via tunnel" : via === "tcp" ? " TCP" : "";
+    if (ms == null) return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-400 dark:text-gray-500", label: "\u2014 ms" + suffix };
+    if (ms <= 150) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: `${ms} ms${suffix}` };
+    if (ms <= 300) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: `${ms} ms${suffix}` };
+    if (ms <= 600) return { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300", label: `${ms} ms${suffix}` };
+    return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: `${ms} ms${suffix}` };
 }
 
 /* ── Component ────────────────────────────────────────────────── */
@@ -78,9 +152,8 @@ export function VpnSetupCard({
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<ProbeResult | null>(null);
 
-    // Lista VLESS salvata per l'utente (per-utente, cifrata su disco)
     type SavedSpeedTest = { at: string; downMbps: number; upMbps: number; latencyMs: number; grade: string; error?: string };
-    type SavedDelayTest = { at: string; avgDelayMs: number | null; okCount: number; totalCount: number; samples: { host: string; delayMs: number }[] };
+    type SavedDelayTest = { at: string; avgDelayMs: number | null; okCount: number; totalCount: number; via: "tunnel" | "tcp"; samples: { host: string; delayMs: number }[] };
     type SavedServer = {
         id: string; label: string; kind: string; serverTag: string; addedAt: string;
         lastSpeedTest?: SavedSpeedTest | null;
@@ -115,12 +188,12 @@ export function VpnSetupCard({
                 body: JSON.stringify({ country: "US", force }),
             });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || j.message || "Errore"}`); return; }
-            if (j.skipped) { onToast("Sorgente gratuita già presente"); return; }
-            onToast(`✅ Trovati ${j.entry.count} server ${j.entry.country} (qualità ${j.entry.quality}/10)`);
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || j.message || "Errore"}`); return; }
+            if (j.skipped) { onToast("Sorgente gratuita gi\u00e0 presente"); return; }
+            onToast(`Trovati ${j.entry.count} server ${j.entry.country} (qualit\u00e0 ${j.entry.quality}/10)`);
             await refreshSaved();
             await refreshFreeSource();
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setFreeSourceLoading(false); }
     }
 
@@ -133,13 +206,13 @@ export function VpnSetupCard({
                 body: JSON.stringify({ serverId: id, timeoutMs: 2000 }),
             });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
             const ok = (j.results as any[]).filter((x) => x.delayMs !== null).length;
             const total = (j.results as any[]).length;
             const best = (j.results as any[]).find((x) => x.delayMs !== null);
-            onToast(`🏓 ${ok}/${total} server ok · migliore ${best?.delayMs ?? '—'} ms`);
+            onToast(`${ok}/${total} server ok \u00b7 migliore ${best?.delayMs ?? '\u2014'} ms`);
             await refreshSaved();
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setDelayingId(null); }
     }
 
@@ -152,11 +225,11 @@ export function VpnSetupCard({
                 body: JSON.stringify({ id }),
             });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
             const t = j.result;
-            onToast(`⚡ Down ${t.downMbps} Mbps · Up ${t.upMbps} Mbps · ${t.latencyMs} ms`);
+            onToast(`Down ${t.downMbps} Mbps \u00b7 Up ${t.upMbps} Mbps \u00b7 ${t.latencyMs} ms`);
             await refreshSaved();
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setTestingId(null); }
     }
 
@@ -180,16 +253,15 @@ export function VpnSetupCard({
                 body: JSON.stringify(serverTag ? { id, serverTag } : { id }),
             });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
-            onToast(`✅ ${j.message}`);
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
+            onToast(j.message);
             setActiveId(id);
             setEditing(false);
             onVpnActiveChange(true);
-            // aggiorna il tag scelto sulla voce locale
             if (serverTag) {
                 setSavedServers((prev) => prev.map((x) => (x.id === id ? { ...x, serverTag } : x)));
             }
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setSwitchingId(null); }
     }
 
@@ -214,11 +286,11 @@ export function VpnSetupCard({
         try {
             const r = await fetch(`/api/configure/vpn-servers?id=${encodeURIComponent(id)}`, { method: "DELETE" });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
             setSavedServers(j.servers ?? []);
             setActiveId(j.activeId ?? null);
             onToast("Server rimosso dalla lista");
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
     }
 
     /** Salva l'input corrente nella lista per-utente e lo attiva (config multi-tenant). */
@@ -235,11 +307,11 @@ export function VpnSetupCard({
                 body: JSON.stringify({ label: kind === "subscription" ? maskSubscription(input) : "VLESS", kind, input, serverTag }),
             });
             const addJson = await addRes.json();
-            if (!addRes.ok || !addJson.ok) { onToast(`❌ ${addJson.error || "Error"}`); return false; }
+            if (!addRes.ok || !addJson.ok) { onToast(`\u274c ${addJson.error || "Error"}`); return false; }
             await refreshSaved();
             await switchServer(addJson.id);
             return true;
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); return false; }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); return false; }
     }
 
     // VLESS / subscription
@@ -254,8 +326,6 @@ export function VpnSetupCard({
     const [editing, setEditing] = useState(false);
 
     async function refreshStatus() {
-        // Solo diagnostica: lo stato "attivo" della card è per-utente
-        // (activeId), NON la config globale legacy.
         try {
             const r = await fetch("/api/vpn/status");
             const vj = await r.json();
@@ -273,24 +343,6 @@ export function VpnSetupCard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [savedServers.length, freeSourceInfo?.hasAutoProvisioned]);
 
-    /* ── Colori per i grade (chip colorati per velocità) ── */
-
-    function gradeColor(grade: string): { bg: string; text: string; label: string } {
-        const g = grade.toLowerCase();
-        if (g.startsWith("ottima") || g.includes("🏆")) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: "🏆 Velocità ottima" };
-        if (g.startsWith("buona") || g.includes("✅")) return { bg: "bg-green-100 dark:bg-green-900/40", text: "text-green-700 dark:text-green-300", label: "✅ Velocità buona" };
-        if (g.startsWith("discreta") || g.includes("⚠️")) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: "⚠️ Velocità discreta" };
-        return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: "❌ Velocità scarsa" };
-    }
-
-    function delayColor(ms: number | null | undefined): { bg: string; text: string; label: string } {
-        if (ms == null) return { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-500 dark:text-gray-400", label: "— ms" };
-        if (ms <= 150) return { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300", label: `🟢 ${ms} ms` };
-        if (ms <= 300) return { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-700 dark:text-amber-300", label: `🟡 ${ms} ms` };
-        if (ms <= 600) return { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300", label: `🟠 ${ms} ms` };
-        return { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-700 dark:text-red-300", label: `🔴 ${ms} ms` };
-    }
-
     /* ── VLESS / subscription ── */
 
     async function fetchServers() {
@@ -306,11 +358,11 @@ export function VpnSetupCard({
                     body: JSON.stringify({ rawConfig: cfg }),
                 });
                 const j = await r.json();
-                if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+                if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
                 setPreviewServers(j.servers);
                 setServerTag("auto");
                 onToast(`${j.count} server trovati`);
-            } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+            } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
             finally { setPreviewLoading(false); }
             return;
         }
@@ -318,15 +370,13 @@ export function VpnSetupCard({
         const url = subscriptionUrl.trim();
         if (!url) { onToast("Inserisci un URL subscription o uno share-link"); return; }
 
-        // Share-link diretto: parsa localmente
         if (isShareLink(url)) {
             setPreviewServers(null);
             setServerTag("auto");
-            onToast("Share-link diretto: verrà salvato come server singolo");
+            onToast("Share-link diretto: verr\u00e0 salvato come server singolo");
             return;
         }
 
-        // Subscription URL: fetch server list
         if (!/^https?:\/\//i.test(url)) { onToast("L'URL deve iniziare con http:// o https://"); return; }
         setPreviewLoading(true);
         setPreviewServers(null);
@@ -337,11 +387,11 @@ export function VpnSetupCard({
                 body: JSON.stringify({ subscriptionUrl: url }),
             });
             const j = await r.json();
-            if (!r.ok || !j.ok) { onToast(`❌ ${j.error || "Error"}`); return; }
+            if (!r.ok || !j.ok) { onToast(`\u274c ${j.error || "Error"}`); return; }
             setPreviewServers(j.servers);
             setServerTag("auto");
             onToast(`${j.count} server trovati`);
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setPreviewLoading(false); }
     }
 
@@ -362,14 +412,11 @@ export function VpnSetupCard({
         setLoading(true);
         setTestResult(null);
         try {
-            // Flusso per-utente: salva nella lista privata e attiva il tunnel
-            // dedicato (rigenera la config sing-box multi-tenant). NON usa più
-            // /api/vpn/setup che riscriverebbe la config con quella singola.
             const ok = await saveAndActivateCurrent();
             if (!ok) return;
             setSubscriptionUrl(""); setRawConfig(""); setPreviewServers(null);
             setEditing(false);
-        } catch (e: any) { onToast(`❌ ${e?.message || String(e)}`); }
+        } catch (e: any) { onToast(`\u274c ${e?.message || String(e)}`); }
         finally { setLoading(false); }
     }
 
@@ -385,32 +432,31 @@ export function VpnSetupCard({
 
     /* ── render ── */
 
-    // Stato per-utente: attivo se l'utente ha una voce attiva nella SUA lista
     const isVlessActive = activeId !== null;
     const activeEntry = savedServers.find((s) => s.id === activeId) ?? null;
 
     return (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            {/* ── Header ── */}
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                    {isVlessActive ? "✅ VLESS — Connesso (tunnel tuo)" : "🧩 VLESS — Nessun tunnel attivo"}
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
+                    <IconShield />
+                    {isVlessActive ? "Connesso (tunnel tuo)" : "Nessun tunnel attivo"}
                 </h3>
                 {!editing && (
                     <div className="flex gap-2">
                         <button
-                            onClick={() => {
-                                setEditing(true);
-                                setTestResult(null);
-                                setPreviewServers(null);
-                            }}
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                            onClick={() => { setEditing(true); setTestResult(null); setPreviewServers(null); }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
                         >
-                            ➕ Aggiungi VLESS
+                            <IconPlus />
+                            Aggiungi server
                         </button>
                         {isVlessActive && (
                             <button onClick={clearAll} disabled={loading}
-                                className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300">
-                                🗑️ Disattiva
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300">
+                                <IconTrash />
+                                Disattiva
                             </button>
                         )}
                     </div>
@@ -418,11 +464,11 @@ export function VpnSetupCard({
             </div>
 
             {isVlessActive && !editing ? (
-                /* Stato attivo (per-utente) */
+                /* Stato attivo */
                 <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
                     <p>
                         <span className="font-semibold">{activeEntry?.label ?? "Tunnel"}</span>
-                        {" · "}{activeEntry?.serverTag ?? "auto"}
+                        {" \u00b7 "}{activeEntry?.serverTag ?? "auto"}
                     </p>
                     <p className="mt-1 text-xs opacity-75">
                         Il traffico del tuo addon esce dal tuo inbound sing-box dedicato.
@@ -445,7 +491,7 @@ export function VpnSetupCard({
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
                                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
-                            🔗 URL subscription
+                            URL subscription
                         </button>
                         <button
                             type="button"
@@ -454,7 +500,7 @@ export function VpnSetupCard({
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100"
                                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
                         >
-                            📋 Incolla config
+                            Incolla config
                         </button>
                     </div>
 
@@ -462,7 +508,7 @@ export function VpnSetupCard({
                         <input
                             value={subscriptionUrl}
                             onChange={(e) => setSubscriptionUrl(e.target.value)}
-                            placeholder="https://provider.com/sub?token=…  oppure  vless://…"
+                            placeholder="https://provider.com/sub?token=\u2026  oppure  vless://\u2026"
                             autoComplete="off" spellCheck={false}
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
                         />
@@ -470,7 +516,7 @@ export function VpnSetupCard({
                         <textarea
                             value={rawConfig}
                             onChange={(e) => setRawConfig(e.target.value)}
-                            placeholder='Incolla qui la config completa (Xray/V2Ray JSON) o uno share-link…'
+                            placeholder="Incolla qui la config completa (Xray/V2Ray JSON) o uno share-link\u2026"
                             rows={6}
                             autoComplete="off" spellCheck={false}
                             className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs font-mono text-gray-900 outline-none focus:border-emerald-500 resize-y dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500"
@@ -480,7 +526,7 @@ export function VpnSetupCard({
                     <div className="flex gap-2">
                         <button onClick={fetchServers} disabled={previewLoading || loading}
                             className="flex-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 inline-flex items-center justify-center gap-1">
-                            {previewLoading ? <><Spinner /> Fetching...</> : "🔍 Fetch servers"}
+                            {previewLoading ? <><Spinner /> Caricamento...</> : "Fetch servers"}
                         </button>
                         {editing && (
                             <button onClick={() => { setEditing(false); setTestResult(null); }}
@@ -494,10 +540,10 @@ export function VpnSetupCard({
                         <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
                             <select value={serverTag} onChange={(e) => setServerTag(e.target.value)}
                                 className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                                <option value="auto">⚡ Auto (failover automatico)</option>
+                                <option value="auto">Auto (failover automatico)</option>
                                 {previewServers.map((s) => (
                                     <option key={s.tag} value={s.tag}>
-                                        {s.tag} — {s.protocol} · {s.host}:{s.port}
+                                        {s.tag} \u2014 {s.protocol} \u00b7 {s.host}:{s.port}
                                     </option>
                                 ))}
                             </select>
@@ -517,90 +563,114 @@ export function VpnSetupCard({
                         className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-1">
                         {loading ? <><Spinner /> Salvando...</>
                             : testing ? <><Spinner /> Testando...</>
-                                : "💾 Save & connect"}
+                                : "Salva e connetti"}
                     </button>
                 </div>
             )}
 
-            {/* Lista VLESS salvata (per-utente) */}
+            {/* ── Lista server salvati ── */}
             {savedServers.length > 0 && (
                 <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
                     <div className="mb-2 flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                            💾 Server salvati ({savedServers.length})
+                            Server salvati ({savedServers.length})
                         </p>
                         <button
                             onClick={() => loadFreeSource(true)}
                             disabled={freeSourceLoading}
-                            className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 inline-flex items-center gap-1 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                            className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
                             title="Aggiorna la lista dalla sorgente gratuita">
-                            {freeSourceLoading ? <><Spinner /> Aggiorno...</> : "🔄 Aggiorna sorgente gratuita"}
+                            {freeSourceLoading ? <><Spinner /> Aggiorno...</> : <><IconRefresh /> Sorgente gratuita</>}
                         </button>
                     </div>
                     <div className="space-y-1 max-h-72 overflow-y-auto">
                         {savedServers.map((s) => {
-                            const grade = s.lastSpeedTest ? gradeColor(s.lastSpeedTest.grade) : null;
-                            const delay = s.lastDelayTest ? delayColor(s.lastDelayTest.avgDelayMs) : null;
+                            const delay = s.lastDelayTest ? delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via) : null;
+                            const speed = s.lastSpeedTest;
                             return (
                                 <div key={s.id}
                                     className={`rounded-lg border px-2 py-1.5 text-xs ${s.id === activeId
                                         ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
                                         : "border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
                                         }`}>
+                                    {/* Riga 1: nome + kind + stato + azioni */}
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => toggleExpand(s.id)}
-                                            className="flex-1 text-left"
+                                            className="flex-1 text-left flex items-center gap-1.5 min-w-0"
                                             title="Mostra nodi e opzioni">
-                                            <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                                {expandedId === s.id ? "▾ " : "▸ "}{s.id === activeId ? "✅ " : ""}{s.label}
+                                            {expandedId === s.id ? <IconChevronDown /> : <IconChevronRight />}
+                                            <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                                {s.label}
                                             </span>
-                                            <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                                                 {s.kind}
                                             </span>
                                             {s.serverTag && s.serverTag !== "auto" && (
-                                                <span className="ml-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
-                                                    nodo: {s.serverTag}
+                                                <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                                                    {s.serverTag}
                                                 </span>
                                             )}
                                         </button>
-                                        <button
-                                            onClick={() => switchServer(s.id)}
-                                            disabled={switchingId !== null || s.id === activeId}
-                                            className="rounded px-1.5 py-0.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-                                            title={s.id === activeId ? "Già attivo" : "Attiva questo tunnel"}>
-                                            ⏏
-                                        </button>
-                                        <button
-                                            onClick={() => speedTest(s.id)}
-                                            disabled={testingId !== null || s.id !== activeId}
-                                            className={`rounded px-1.5 py-0.5 ${grade ? grade.bg : "hover:bg-blue-50 dark:hover:bg-blue-900/30"} ${grade ? grade.text : ""} disabled:opacity-30`}
-                                            title={s.id === activeId ? "Test velocità (lento, banda)" : "Attiva prima il server per testarlo"}>
-                                            {testingId === s.id ? "⏳" : grade?.label ?? "⚡ Test"}
-                                        </button>
+
+                                        {/* Bottone Attiva / Attivo */}
+                                        {s.id === activeId ? (
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
+                                                <IconCheck />
+                                                Attivo
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={() => switchServer(s.id)}
+                                                disabled={switchingId !== null}
+                                                className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-700 dark:bg-gray-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30 shrink-0"
+                                                title="Attiva questo tunnel">
+                                                {switchingId === s.id ? <Spinner /> : null}
+                                                Attiva
+                                            </button>
+                                        )}
+
+                                        {/* Delay test */}
                                         <button
                                             onClick={() => delayTest(s.id)}
                                             disabled={delayingId !== null}
-                                            className={`rounded px-1.5 py-0.5 ${delay ? delay.bg : "hover:bg-amber-50 dark:hover:bg-amber-900/30"} ${delay ? delay.text : ""} disabled:opacity-30`}
-                                            title="Test rapido latenza (Clash API)">
-                                            {delayingId === s.id ? "⏳" : delay?.label ?? "🏓 Delay"}
+                                            className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium ${delay ? delay.bg + " " + delay.text : "text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 dark:text-gray-400"} disabled:opacity-40 shrink-0`}
+                                            title="Test latenza (Clash API se attivo, TCP dial altrimenti)">
+                                            {delayingId === s.id ? <Spinner /> : <IconPing />}
+                                            {delay ? delay.label : "Delay"}
                                         </button>
+
+                                        {/* Speed test (solo attivo) */}
+                                        {s.id === activeId && (
+                                            <button
+                                                onClick={() => speedTest(s.id)}
+                                                disabled={testingId !== null}
+                                                className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium ${speed ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:text-gray-400"} disabled:opacity-40 shrink-0`}
+                                                title="Test velocit\u00e0 (banda reale)">
+                                                {testingId === s.id ? <Spinner /> : <IconSpeed />}
+                                                {speed ? `${speed.downMbps}/${speed.upMbps} Mbps` : "Speed"}
+                                            </button>
+                                        )}
+
+                                        {/* Trash (ghost on hover) */}
                                         <button onClick={() => deleteServer(s.id)} disabled={switchingId !== null}
-                                            className="rounded px-1.5 py-0.5 text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/30"
+                                            className="rounded p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:text-gray-600 dark:hover:text-red-400 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                                             title="Rimuovi dalla lista">
-                                            🗑️
+                                            <IconTrash />
                                         </button>
                                     </div>
-                                    {(grade || delay) && (
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
-                                            {grade && (
-                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${grade.bg} ${grade.text}`}>
-                                                    {grade.label} · ↓{s.lastSpeedTest!.downMbps} · ↑{s.lastSpeedTest!.upMbps} Mbps
+
+                                    {/* Riga 2: metriche (delay + speed) */}
+                                    {(delay || speed) && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] ml-6">
+                                            {delay && (
+                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${delay.bg} ${delay.text}`}>
+                                                    {delay.label}
                                                 </span>
                                             )}
-                                            {delay && s.lastDelayTest && (
-                                                <span className={`rounded px-1.5 py-0.5 font-semibold ${delay.bg} ${delay.text}`}>
-                                                    avg {s.lastDelayTest.avgDelayMs ?? "—"} ms · {s.lastDelayTest.okCount}/{s.lastDelayTest.totalCount} ok
+                                            {speed && (
+                                                <span className="rounded bg-blue-100 px-1.5 py-0.5 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                                    {speed.downMbps}/{speed.upMbps} Mbps
                                                 </span>
                                             )}
                                         </div>
@@ -610,42 +680,64 @@ export function VpnSetupCard({
                                     {expandedId === s.id && (
                                         <div className="mt-2 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900/60">
                                             {nodesLoadingId === s.id ? (
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400">⏳ Carico i nodi…</p>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                                                    <Spinner /> Carico i nodi\u2026
+                                                </p>
                                             ) : (nodesById[s.id]?.length ?? 0) === 0 ? (
                                                 <p className="text-[10px] text-gray-500 dark:text-gray-400">Nessun nodo disponibile (subscription irraggiungibile?)</p>
                                             ) : (
                                                 <>
-                                                    <select
-                                                        value={s.serverTag || "auto"}
-                                                        onChange={(e) => switchServer(s.id, e.target.value)}
-                                                        disabled={switchingId !== null}
-                                                        className="w-full rounded-md border border-gray-300 bg-white p-1.5 text-[11px] text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                                                        title="Scegli auto (failover) o un nodo specifico">
-                                                        <option value="auto">⚡ Auto (failover su tutti i nodi)</option>
+                                                    {/* Lista radio: Auto + nodi */}
+                                                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {/* Opzione Auto */}
+                                                        <label className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${(s.serverTag || "auto") === "auto"
+                                                            ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                                            : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                                                            }`}>
+                                                            <input
+                                                                type="radio"
+                                                                name={`node-${s.id}`}
+                                                                value="auto"
+                                                                checked={(s.serverTag || "auto") === "auto"}
+                                                                onChange={() => switchServer(s.id, "auto")}
+                                                                className="accent-emerald-600"
+                                                            />
+                                                            <span className="font-semibold text-gray-800 dark:text-gray-200">Auto</span>
+                                                            <span className="text-gray-500 dark:text-gray-400">failover su tutti i nodi</span>
+                                                            {s.lastDelayTest && (
+                                                                <span className={`ml-auto rounded px-1.5 py-0.5 font-semibold ${delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).bg} ${delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).text}`}>
+                                                                    {delayChip(s.lastDelayTest.avgDelayMs, s.lastDelayTest.via).label}
+                                                                </span>
+                                                            )}
+                                                        </label>
                                                         {nodesById[s.id].map((n) => {
                                                             const sample = s.lastDelayTest?.samples.find((x) => x.host === n.tag);
+                                                            const dc = delayChip(sample ? sample.delayMs : null);
+                                                            const isSelected = s.serverTag === n.tag;
                                                             return (
-                                                                <option key={n.tag} value={n.tag}>
-                                                                    {n.tag} — {n.protocol} · {n.host}:{n.port}{sample ? ` · ${sample.delayMs} ms` : ""}
-                                                                </option>
-                                                            );
-                                                        })}
-                                                    </select>
-                                                    <div className="max-h-28 space-y-1 overflow-y-auto">
-                                                        {nodesById[s.id].map((n) => {
-                                                            const sample = s.lastDelayTest?.samples.find((x) => x.host === n.tag);
-                                                            const dc = delayColor(sample ? sample.delayMs : null);
-                                                            return (
-                                                                <div key={n.tag} className="flex items-center gap-2 rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] dark:border-gray-700 dark:bg-gray-800">
+                                                                <label key={n.tag} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] cursor-pointer transition ${isSelected
+                                                                    ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                                                                    : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                                                                    }`}>
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`node-${s.id}`}
+                                                                        value={n.tag}
+                                                                        checked={isSelected}
+                                                                        onChange={() => switchServer(s.id, n.tag)}
+                                                                        className="accent-emerald-600"
+                                                                    />
                                                                     <span className="font-mono font-semibold text-gray-800 dark:text-gray-200 truncate">{n.tag}</span>
-                                                                    <span className="ml-auto font-mono text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
-                                                                    <span className={`rounded px-1 py-0.5 font-semibold ${dc.bg} ${dc.text}`}>{dc.label}</span>
-                                                                </div>
+                                                                    <span className="text-gray-500 dark:text-gray-400">{n.host}:{n.port}</span>
+                                                                    <span className={`ml-auto rounded px-1.5 py-0.5 font-semibold ${dc.bg} ${dc.text}`}>
+                                                                        {dc.label}
+                                                                    </span>
+                                                                </label>
                                                             );
                                                         })}
                                                     </div>
                                                     <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                                        Scegli un nodo dal menu per attivarlo subito (o "auto" per il failover). Il delay dei nodi è aggiornato col bottone 🏑 Delay.
+                                                        Seleziona un nodo per attivarlo subito, o "Auto" per il failover. Premi "Delay" per aggiornare i valori.
                                                     </p>
                                                 </>
                                             )}
@@ -664,18 +756,18 @@ export function VpnSetupCard({
                     : testResult.vpnDetected || testResult.geoBlocked ? "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300"
                         : "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"}`}>
                     <div className="font-semibold">
-                        {testResult.ok ? "✅ Connection OK"
-                            : testResult.vpnDetected ? "⚠️ VPN detected by Paramount+"
-                                : testResult.geoBlocked ? "🌍 Geo-blocked (HTTP 451)"
-                                    : "❌ Connection failed"}
+                        {testResult.ok ? "Connection OK"
+                            : testResult.vpnDetected ? "VPN detected by Paramount+"
+                                : testResult.geoBlocked ? "Geo-blocked (HTTP 451)"
+                                    : "Connection failed"}
                     </div>
                     <div className="mt-1 text-xs space-x-1">
                         {testResult.proxy && <span>Proxy: <code className="font-mono">{maskUrl(testResult.proxy)}</code></span>}
-                        {testResult.statusCode !== undefined && <span>· HTTP {testResult.statusCode}</span>}
-                        {testResult.ip && <span>· IP: <code className="font-mono">{testResult.ip}</code></span>}
-                        {testResult.country && <span>· {testResult.country}</span>}
-                        {testResult.city && <span>· {testResult.city}</span>}
-                        <span>· {testResult.elapsedMs}ms</span>
+                        {testResult.statusCode !== undefined && <span>\u00b7 HTTP {testResult.statusCode}</span>}
+                        {testResult.ip && <span>\u00b7 IP: <code className="font-mono">{testResult.ip}</code></span>}
+                        {testResult.country && <span>\u00b7 {testResult.country}</span>}
+                        {testResult.city && <span>\u00b7 {testResult.city}</span>}
+                        <span>\u00b7 {testResult.elapsedMs}ms</span>
                     </div>
                     {testResult.error && <div className="mt-1 text-xs opacity-75">{testResult.error}</div>}
                 </div>

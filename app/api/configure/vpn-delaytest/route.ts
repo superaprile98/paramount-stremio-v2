@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     const tagPrefix = `u${auth.userId}-`;
     const clashProxies = (await listClashProxies()).filter((n) => n.startsWith(tagPrefix));
 
-    const allResults: { serverId: string; results: DelayEntry[] }[] = [];
+    const allResults: { serverId: string; via: "tunnel" | "tcp"; results: DelayEntry[] }[] = [];
     for (const server of targets) {
         const isActive = server.id === store.activeId;
 
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
                     return { name: n, host, delayMs: r.delayMs, ok: r.ok, via: "clash" as const } as DelayEntry;
                 })
             );
-            allResults.push({ serverId: server.id, results: tasks });
+            allResults.push({ serverId: server.id, via: "tunnel", results: tasks });
             continue;
         }
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
                     } as DelayEntry;
                 })
         );
-        allResults.push({ serverId: server.id, results: tasks });
+        allResults.push({ serverId: server.id, via: "tcp", results: tasks });
     }
 
     // Salva l'ultimo delay test su ogni entry toccata
@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
             avgDelayMs: avg,
             okCount,
             totalCount: item.results.length,
+            via: item.via,
             samples: item.results
                 .filter((r) => r.delayMs !== null)
                 .map((r) => ({ host: r.host, delayMs: r.delayMs as number }))

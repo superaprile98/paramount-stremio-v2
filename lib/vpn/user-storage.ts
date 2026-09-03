@@ -28,12 +28,14 @@ export interface VpnServerEntry {
     resolvedServers?: ParsedServer[];
     /** Ultimo speed test eseguito sulla voce (solo se attiva). */
     lastSpeedTest?: SpeedTestResult;
-    /** Ultimo delay test via Clash API (più leggero del speed test). */
+    /** Ultimo delay test: via Clash API ("tunnel") se attiva, TCP dial ("tcp") se non attiva. */
     lastDelayTest?: {
         at: string;
         avgDelayMs: number | null;
         okCount: number;
         totalCount: number;
+        /** Metodo di misura: "tunnel" = probe HTTP attraverso sing-box, "tcp" = handshake diretto. */
+        via: 'tunnel' | 'tcp';
         samples: { host: string; delayMs: number }[];
     };
     /** Marker per le entry auto-provisionate da una fonte gratuita (es. openproxylist). */
